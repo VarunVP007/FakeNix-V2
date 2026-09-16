@@ -18,7 +18,9 @@ def jwt_required_custom(fn):
     def wrapper(*args, **kwargs):
         try:
             verify_jwt_in_request()
-            g.current_user_id = get_jwt_identity()
+            identity = get_jwt_identity()
+            # JWT identity is stored as str(user.id); cast back to int for DB queries
+            g.current_user_id = int(identity) if identity is not None else None
         except Exception as e:
             return error_response(str(e), 401)
         return fn(*args, **kwargs)
@@ -29,19 +31,21 @@ def demo_mode_optional(fn):
     """
     Decorator that allows demo tokens to pass through.
     In DEMO_MODE=true, any token starting with 'demo_token_' is accepted
-    and g.current_user_id is set to the demo user ID.
+    and g.current_user_id is set to the demo user ID (integer 1).
     """
     @wraps(fn)
     def wrapper(*args, **kwargs):
         if current_app.config.get('DEMO_MODE'):
             auth_header = request.headers.get('Authorization', '')
             if auth_header.startswith('Bearer demo_token_'):
-                g.current_user_id = 1  # demo user ID
+                g.current_user_id = 1  # demo user ID (integer)
                 return fn(*args, **kwargs)
         # Fall through to normal JWT verification
         try:
             verify_jwt_in_request()
-            g.current_user_id = get_jwt_identity()
+            identity = get_jwt_identity()
+            # JWT identity is stored as str(user.id); cast back to int for DB queries
+            g.current_user_id = int(identity) if identity is not None else None
         except Exception as e:
             return error_response(str(e), 401)
         return fn(*args, **kwargs)

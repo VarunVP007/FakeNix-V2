@@ -243,3 +243,5 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 Developed with passion for **OPCODE IMPACT 2026** at **Jyothi Engineering College**.  
 *Special thanks to cybersecurity mentors and open-source forensic research communities (FaceForensics++, Deepfake Detection Challenge, DFDC).*
+#   F a k e N i x - v 1  
+ 
