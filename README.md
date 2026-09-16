@@ -229,8 +229,3 @@ You can test all protected workflows using either of the following methods:
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
 ---
-
-## Acknowledgments & Team
-
-Developed with passion for **OPCODE IMPACT 2026** at **Jyothi Engineering College**.  
-*Special thanks to cybersecurity mentors and open-source forensic research communities (FaceForensics++, Deepfake Detection Challenge, DFDC).*
