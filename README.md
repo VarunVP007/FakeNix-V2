@@ -6,7 +6,7 @@
 [![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
 [![React](https://img.shields.io/badge/React-18.2-61DAFB?logo=react&logoColor=black)](https://reactjs.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Hackathon](https://img.shields.io/badge/OPCODE_IMPACT-2026-red.svg)](https://jecc.ac.in)
+ 
 
  
 
