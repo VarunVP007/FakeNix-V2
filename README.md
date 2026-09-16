@@ -6,18 +6,9 @@
 [![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
 [![React](https://img.shields.io/badge/React-18.2-61DAFB?logo=react&logoColor=black)](https://reactjs.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Hackathon](https://img.shields.io/badge/OPCODE_IMPACT-2026-red.svg)](https://jecc.ac.in)
+ 
 
----
-
-### Hackathon Submission Details
-- **Event:** OPCODE IMPACT 2026 — 24-Hour National-Level Cybersecurity Hackathon
-- **Institution:** Jyothi Engineering College
-- **Dates:** October 9–10, 2026
-- **Primary Track:** Deepfakes, Synthetic Media & Digital Trust
-- **Secondary Track:** Digital Forensics & Cyber Intelligence
-
----
+ 
 
 ## About
 
@@ -238,10 +229,3 @@ You can test all protected workflows using either of the following methods:
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
 ---
-
-## Acknowledgments & Team
-
-Developed with passion for **OPCODE IMPACT 2026** at **Jyothi Engineering College**.  
-*Special thanks to cybersecurity mentors and open-source forensic research communities (FaceForensics++, Deepfake Detection Challenge, DFDC).*
-#   F a k e N i x - v 1  
- 
