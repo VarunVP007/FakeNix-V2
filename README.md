@@ -8,16 +8,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Hackathon](https://img.shields.io/badge/OPCODE_IMPACT-2026-red.svg)](https://jecc.ac.in)
 
----
-
-### Hackathon Submission Details
-- **Event:** OPCODE IMPACT 2026 — 24-Hour National-Level Cybersecurity Hackathon
-- **Institution:** Jyothi Engineering College
-- **Dates:** October 9–10, 2026
-- **Primary Track:** Deepfakes, Synthetic Media & Digital Trust
-- **Secondary Track:** Digital Forensics & Cyber Intelligence
-
----
+ 
 
 ## About
 
