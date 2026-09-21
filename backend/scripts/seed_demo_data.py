@@ -16,7 +16,7 @@ Never seed into a production database.
 import sys
 import os
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -100,11 +100,15 @@ def seed():
             },
         ]
 
-        for s in samples:
+        now = datetime.now(timezone.utc)
+        for i, s in enumerate(samples):
             existing_det = db.session.query(Detection).filter(Detection.detection_uid == s['uid']).first()
             if existing_det:
                 print(f'[FAKENIX] Detection {s["uid"]} already exists. Skipping.')
                 continue
+
+            # Give sample detections realistic dynamic timestamps within the last 11 days
+            sample_time = now - timedelta(days=i, hours=2 * (i + 1))
 
             det = Detection(
                 detection_uid=s['uid'],
@@ -125,6 +129,7 @@ def seed():
                 indicators_json=json.dumps(s['indicators']),
                 frames_json=json.dumps(s['frames']),
                 metadata_json=json.dumps({}),
+                created_at=sample_time,
             )
             db.session.add(det)
             db.session.flush()

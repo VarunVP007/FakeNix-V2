@@ -144,3 +144,25 @@ def remove_detection(detection_uid: str):
     if not deleted:
         return error_response('Detection not found or not authorized.', 404)
     return success_response(message='Detection deleted successfully.')
+
+
+@detection_bp.route('/detections/trend', methods=['GET'])
+@demo_mode_optional
+def get_trend():
+    """GET /api/detections/trend?days=11"""
+    from app.services.dashboard_service import get_detection_trend
+    days_param = request.args.get('days', '11')
+    try:
+        days = int(days_param)
+        if days < 1 or days > 90:
+            return error_response('Query parameter "days" must be an integer between 1 and 90.', 400)
+    except ValueError:
+        return error_response('Query parameter "days" must be a valid integer.', 400)
+
+    try:
+        data = get_detection_trend(user_id=g.current_user_id, days=days)
+        return success_response(data=data, message='Detection trend retrieved successfully.')
+    except Exception as e:
+        current_app.logger.exception(f'Error retrieving detection trend: {e}')
+        return error_response('Failed to retrieve detection trend.', 500)
+

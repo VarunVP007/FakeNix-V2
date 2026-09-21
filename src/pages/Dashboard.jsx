@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import {
-  ScanSearch, Image, Video, Link2,
+  ScanSearch, Image, Video,
   FileText, Shield, AlertTriangle,
   TrendingUp, TrendingDown
 } from 'lucide-react'
@@ -14,7 +14,7 @@ import { mockDetections, recentAlerts } from '../data/mockDetections'
 const quickActions = [
   { to: '/detect/image', icon: Image, label: 'Detect Image', color: '#2563eb', bg: '#eff6ff' },
   { to: '/detect/video', icon: Video, label: 'Detect Video', color: '#7c3aed', bg: '#f5f3ff' },
-  { to: '/detect/url', icon: Link2, label: 'Analyze URL', color: '#0891b2', bg: '#ecfeff' },
+  { to: '/evidence', icon: Shield, label: 'Evidence Vault', color: '#0891b2', bg: '#ecfeff' },
   { to: '/cybercrime/report', icon: AlertTriangle, label: 'Report Cybercrime', color: '#dc2626', bg: '#fef2f2' }
 ]
 

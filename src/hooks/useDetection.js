@@ -57,23 +57,6 @@ export function useDetection() {
     }
   }, [])
 
-  const analyzeURL = useCallback(async (url) => {
-    setLoading(true)
-    setError(null)
-    setProgress(0)
-    try {
-      const res = await detectionService.analyzeURL(url)
-      setResult(res)
-      setProgress(100)
-      return res
-    } catch (err) {
-      setError(err.message || 'Analysis failed')
-      throw err
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
   const reset = useCallback(() => {
     setResult(null)
     setError(null)
@@ -88,7 +71,7 @@ export function useDetection() {
     progress,
     analyzeImage,
     analyzeVideo,
-    analyzeURL,
     reset
   }
 }
+

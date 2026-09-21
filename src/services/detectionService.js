@@ -1,5 +1,5 @@
 import api, { isDemoMode, delay } from './api'
-import { mockDetections } from '../data/mockDetections'
+import { mockDetections, generateDynamicDetectionTrend } from '../data/mockDetections'
 import { mockEvidence } from '../data/mockEvidence'
 import { mockReports } from '../data/mockReports'
 
@@ -88,32 +88,50 @@ export const detectionService = {
     return response.data
   },
 
-  async analyzeURL(url) {
-    if (isDemoMode()) {
-      await delay(3000)
-      const res = getRandomResult()
-      const det = {
-        ...mockDetections[5],
-        id: 'det_' + Date.now(),
-        evidenceId: generateEvidenceId(),
-        fileName: url,
-        fileType: 'url',
-        sourceUrl: url,
-        result: res.result,
-        risk: res.risk,
-        confidence: parseFloat(res.confidence.toFixed(1)),
-        deepfakeProbability: parseFloat(res.confidence.toFixed(1)),
-        realProbability: parseFloat((100 - res.confidence).toFixed(1)),
-        sha256: generateHash(),
-        timestamp: new Date().toISOString()
+  async getDetectionTrend(days = 11) {
+    try {
+      const response = await api.get('/dashboard/detection-trend', { params: { days } })
+      if (response?.data?.success && response?.data?.data?.trend) {
+        return response.data.data
       }
-      const history = JSON.parse(localStorage.getItem('fakenix_history') || '[]')
-      history.unshift(det)
-      localStorage.setItem('fakenix_history', JSON.stringify(history))
-      return det
+    } catch (err) {
+      console.warn('Backend detection trend query failed or unavailable, using dynamic fallback:', err?.message)
     }
-    const response = await api.post('/detect/url', { url })
-    return response.data
+
+    // Dynamic client-side fallback (computed relative to current date)
+    await delay(200)
+    const dynamicTrend = generateDynamicDetectionTrend(days)
+
+    // Aggregate any local detections created in session
+    try {
+      const localHistory = JSON.parse(localStorage.getItem('fakenix_history') || '[]')
+      if (Array.isArray(localHistory) && localHistory.length > 0) {
+        localHistory.forEach((item) => {
+          if (item.timestamp) {
+            const itemDate = item.timestamp.slice(0, 10)
+            const target = dynamicTrend.find((t) => t.date === itemDate)
+            if (target) {
+              const res = (item.result || '').toLowerCase()
+              if (res === 'real') target.real += 1
+              else if (res === 'deepfake') target.deepfake += 1
+              else target.suspicious += 1
+              target.total += 1
+            }
+          }
+        })
+      }
+    } catch (e) {
+      // Ignore local parse error
+    }
+
+    const start = dynamicTrend[0]?.date || ''
+    const end = dynamicTrend[dynamicTrend.length - 1]?.date || ''
+
+    return {
+      range: { start, end, days },
+      trend: dynamicTrend,
+      timezone: 'Client/Local'
+    }
   },
 
   async getDetectionHistory() {

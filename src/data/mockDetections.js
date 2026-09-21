@@ -166,9 +166,9 @@ export const mockDetections = [
   {
     id: 'det_006',
     evidenceId: 'FX-2026-00137',
-    fileName: 'viral_video_url',
-    fileType: 'url',
-    fileSize: 'N/A',
+    fileName: 'viral_clip.mp4',
+    fileType: 'video',
+    fileSize: '18.4 MB',
     resolution: '1280x720',
     duration: '0:55',
     result: 'suspicious',
@@ -176,7 +176,6 @@ export const mockDetections = [
     confidence: 54.3,
     deepfakeProbability: 54.3,
     realProbability: 45.7,
-    sourceUrl: 'https://example-social.com/video/12345',
     model: 'EfficientNet-B4',
     timestamp: '2026-09-10T11:05:00Z',
     sha256: 'f16a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6',
@@ -217,16 +216,46 @@ export const recentAlerts = [
   }
 ]
 
-export const detectionTrend = [
-  { date: 'Sep 1', real: 12, deepfake: 4, suspicious: 2 },
-  { date: 'Sep 2', real: 8, deepfake: 6, suspicious: 3 },
-  { date: 'Sep 3', real: 15, deepfake: 3, suspicious: 1 },
-  { date: 'Sep 4', real: 10, deepfake: 7, suspicious: 4 },
-  { date: 'Sep 5', real: 18, deepfake: 5, suspicious: 2 },
-  { date: 'Sep 6', real: 6, deepfake: 9, suspicious: 5 },
-  { date: 'Sep 7', real: 14, deepfake: 4, suspicious: 2 },
-  { date: 'Sep 8', real: 11, deepfake: 8, suspicious: 3 },
-  { date: 'Sep 9', real: 9, deepfake: 6, suspicious: 4 },
-  { date: 'Sep 10', real: 20, deepfake: 5, suspicious: 1 },
-  { date: 'Sep 11', real: 7, deepfake: 10, suspicious: 3 }
-]
+export const generateDynamicDetectionTrend = (days = 11, endDate = new Date()) => {
+  const result = []
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const basePatterns = [
+    { real: 12, deepfake: 4, suspicious: 2 },
+    { real: 8, deepfake: 6, suspicious: 3 },
+    { real: 15, deepfake: 3, suspicious: 1 },
+    { real: 10, deepfake: 7, suspicious: 4 },
+    { real: 18, deepfake: 5, suspicious: 2 },
+    { real: 6, deepfake: 9, suspicious: 5 },
+    { real: 14, deepfake: 4, suspicious: 2 },
+    { real: 11, deepfake: 8, suspicious: 3 },
+    { real: 9, deepfake: 6, suspicious: 4 },
+    { real: 20, deepfake: 5, suspicious: 1 },
+    { real: 7, deepfake: 10, suspicious: 3 }
+  ]
+
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(endDate)
+    d.setDate(d.getDate() - i)
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const isoDate = `${year}-${month}-${day}`
+    const shortLabel = `${monthNames[d.getMonth()]} ${d.getDate()}`
+
+    const patternIndex = (days - 1 - i) % basePatterns.length
+    const pattern = basePatterns[patternIndex] || { real: 5, deepfake: 2, suspicious: 1 }
+
+    result.push({
+      date: isoDate,
+      label: shortLabel,
+      real: pattern.real,
+      deepfake: pattern.deepfake,
+      suspicious: pattern.suspicious,
+      total: pattern.real + pattern.deepfake + pattern.suspicious
+    })
+  }
+  return result
+}
+
+export const detectionTrend = generateDynamicDetectionTrend(11)
+

@@ -40,7 +40,7 @@ class Detection(db.Model):
     frames_json = db.Column(db.Text, nullable=True)          # JSON array
     metadata_json = db.Column(db.Text, nullable=True)        # JSON object
 
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
 
     # Relationships
     evidence = db.relationship('Evidence', backref='detection', lazy='dynamic', cascade='all, delete-orphan')
