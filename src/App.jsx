@@ -19,7 +19,6 @@ import Dashboard from './pages/Dashboard'
 import Detect from './pages/Detect'
 import ImageAnalysis from './pages/ImageAnalysis'
 import VideoAnalysis from './pages/VideoAnalysis'
-import URLAnalysis from './pages/URLAnalysis'
 import Processing from './pages/Processing'
 import Result from './pages/Result'
 import FrameAnalysis from './pages/FrameAnalysis'
@@ -84,7 +83,7 @@ function App() {
                 <Route path="/detect" element={<Detect />} />
                 <Route path="/detect/image" element={<ImageAnalysis />} />
                 <Route path="/detect/video" element={<VideoAnalysis />} />
-                <Route path="/detect/url" element={<URLAnalysis />} />
+                <Route path="/detect/url" element={<Navigate to="/detect" replace />} />
                 <Route path="/analysis/processing" element={<Processing />} />
                 <Route path="/result/:id" element={<Result />} />
                 <Route path="/result/:id/frames" element={<FrameAnalysis />} />

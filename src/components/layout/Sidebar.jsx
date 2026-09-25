@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard, ScanSearch, Image, Video, Link2,
+  LayoutDashboard, ScanSearch, Image, Video,
   History, Shield, FileText, AlertTriangle,
   BookOpen, HelpCircle, Settings, LogOut,
   ChevronDown, ChevronRight, Cpu
@@ -20,8 +20,7 @@ const navSections = [
     items: [
       { to: '/detect', icon: ScanSearch, label: 'Analyze Media' },
       { to: '/detect/image', icon: Image, label: 'Image Analysis', sub: true },
-      { to: '/detect/video', icon: Video, label: 'Video Analysis', sub: true },
-      { to: '/detect/url', icon: Link2, label: 'URL Analysis', sub: true }
+      { to: '/detect/video', icon: Video, label: 'Video Analysis', sub: true }
     ]
   },
   {

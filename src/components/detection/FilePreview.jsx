@@ -1,48 +1,12 @@
-import { FileImage, FileVideo, Link2, File } from 'lucide-react'
+import { FileImage, FileVideo, File } from 'lucide-react'
 
 const icons = {
   image: FileImage,
-  video: FileVideo,
-  url: Link2
+  video: FileVideo
 }
 
-export default function FilePreview({ file, type = 'image', url }) {
+export default function FilePreview({ file, type = 'image' }) {
   const Icon = icons[type] || File
-
-  if (type === 'url' && url) {
-    return (
-      <div style={{
-        background: 'var(--blue-bg)',
-        border: '1px solid var(--blue-border)',
-        borderRadius: 'var(--radius-lg)',
-        padding: 20,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14
-      }}>
-        <div style={{
-          width: 48, height: 48,
-          background: 'var(--brand-primary)',
-          borderRadius: 'var(--radius)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center'
-        }}>
-          <Link2 size={22} color="white" />
-        </div>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)', marginBottom: 4 }}>
-            URL Analysis Target
-          </div>
-          <div style={{
-            fontSize: 12, color: 'var(--blue-text)',
-            fontFamily: 'var(--font-mono)',
-            wordBreak: 'break-all'
-          }}>
-            {url}
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   if (!file) return null
 

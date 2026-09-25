@@ -122,6 +122,7 @@ def _register_blueprints(app: Flask) -> None:
     from app.routes.report_routes import report_bp
     from app.routes.cybercrime_routes import cybercrime_bp
     from app.routes.user_routes import user_bp
+    from app.routes.dashboard_routes import dashboard_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(detection_bp, url_prefix='/api')
@@ -129,6 +130,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(report_bp, url_prefix='/api')
     app.register_blueprint(cybercrime_bp, url_prefix='/api')
     app.register_blueprint(user_bp, url_prefix='/api/user')
+    app.register_blueprint(dashboard_bp, url_prefix='/api/dashboard')
 
     # Root route GET /
     @app.route('/', methods=['GET'])
@@ -159,6 +161,7 @@ def _register_blueprints(app: Flask) -> None:
                 'detect_video': '/api/detect/video',
                 'detect_url': '/api/detect/url',
                 'detections': '/api/detections',
+                'detection_trend': '/api/dashboard/detection-trend',
                 'evidence': '/api/evidence',
                 'reports': '/api/reports',
                 'cybercrime': '/api/cybercrime',

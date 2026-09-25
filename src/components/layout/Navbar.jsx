@@ -10,7 +10,6 @@ const breadcrumbMap = {
   '/detect': ['Detect Content', 'Analyze Media'],
   '/detect/image': ['Detect Content', 'Image Analysis'],
   '/detect/video': ['Detect Content', 'Video Analysis'],
-  '/detect/url': ['Detect Content', 'URL Analysis'],
   '/analysis/processing': ['Detection', 'Processing'],
   '/history': ['Investigation', 'Detection History'],
   '/evidence': ['Investigation', 'Evidence Vault'],

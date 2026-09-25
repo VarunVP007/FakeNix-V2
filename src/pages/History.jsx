@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Search, Filter, Calendar, Download, Trash2, ArrowUpRight,
-  FileVideo, FileImage, Globe, Shield, RefreshCw, Layers
+  FileVideo, FileImage, Shield, RefreshCw, Layers
 } from 'lucide-react'
 import { detectionService } from '../services/detectionService'
 import { ResultBadge, RiskBadge } from '../components/common/Badge'
@@ -139,7 +139,6 @@ export default function History() {
               <option value="all">All Formats</option>
               <option value="image">Image</option>
               <option value="video">Video</option>
-              <option value="url">URL</option>
             </select>
           </div>
 
@@ -212,8 +211,6 @@ export default function History() {
                         }}>
                           {item.fileType === 'video' ? (
                             <FileVideo size={18} color="var(--accent-purple)" />
-                          ) : item.fileType === 'url' ? (
-                            <Globe size={18} color="var(--accent-cyan)" />
                           ) : (
                             <FileImage size={18} color="var(--accent-blue)" />
                           )}

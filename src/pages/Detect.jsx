@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Image, Video, Link2, ChevronRight } from 'lucide-react'
+import { Image, Video, ChevronRight } from 'lucide-react'
 
 const options = [
   {
@@ -21,16 +21,6 @@ const options = [
     color: '#7c3aed',
     bg: '#f5f3ff',
     action: 'Analyze Video'
-  },
-  {
-    to: '/detect/url',
-    icon: Link2,
-    title: 'Analyze URL',
-    desc: 'Paste a direct media URL from any platform to analyze without downloading the file.',
-    formats: ['HTTP', 'HTTPS', 'Direct Media Links'],
-    color: '#0891b2',
-    bg: '#ecfeff',
-    action: 'Analyze URL'
   }
 ]
 
