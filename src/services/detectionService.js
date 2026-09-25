@@ -52,7 +52,7 @@ export const detectionService = {
     const response = await api.post('/detect/image', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
-    return response.data
+    return response.data?.data !== undefined ? response.data.data : response.data
   },
 
   async analyzeVideo(file) {
@@ -85,7 +85,7 @@ export const detectionService = {
     const response = await api.post('/detect/video', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
-    return response.data
+    return response.data?.data !== undefined ? response.data.data : response.data
   },
 
   async analyzeURL(url) {
@@ -113,7 +113,7 @@ export const detectionService = {
       return det
     }
     const response = await api.post('/detect/url', { url })
-    return response.data
+    return response.data?.data !== undefined ? response.data.data : response.data
   },
 
   async getDetectionHistory() {
@@ -123,7 +123,7 @@ export const detectionService = {
       return [...localHistory, ...mockDetections]
     }
     const response = await api.get('/detections')
-    return response.data
+    return response.data?.data !== undefined ? response.data.data : response.data
   },
 
   async getDetectionResult(id) {
@@ -136,7 +136,7 @@ export const detectionService = {
       return mockDetections.find((d) => d.id === id) || mockDetections[0]
     }
     const response = await api.get(`/detections/${id}`)
-    return response.data
+    return response.data?.data !== undefined ? response.data.data : response.data
   },
 
   async getEvidence() {
@@ -145,7 +145,7 @@ export const detectionService = {
       return mockEvidence
     }
     const response = await api.get('/evidence')
-    return response.data
+    return response.data?.data !== undefined ? response.data.data : response.data
   },
 
   async getReports() {
@@ -154,7 +154,7 @@ export const detectionService = {
       return mockReports
     }
     const response = await api.get('/reports')
-    return response.data
+    return response.data?.data !== undefined ? response.data.data : response.data
   },
 
   async generateReport(detectionId) {
@@ -169,7 +169,7 @@ export const detectionService = {
       }
     }
     const response = await api.post('/reports', { detectionId })
-    return response.data
+    return response.data?.data !== undefined ? response.data.data : response.data
   },
 
   async submitCybercrimeReport(data) {
@@ -183,6 +183,6 @@ export const detectionService = {
       }
     }
     const response = await api.post('/cybercrime/report', data)
-    return response.data
+    return response.data?.data !== undefined ? response.data.data : response.data
   }
 }

@@ -25,9 +25,16 @@ export const authService = {
     }
     // Real backend call
     const response = await api.post('/auth/login', { email, password })
-    const { user, token } = response.data
-    localStorage.setItem('fakenix_user', JSON.stringify(user))
-    localStorage.setItem('fakenix_token', token)
+    const payload = response.data?.data || response.data
+    const user = payload.user || payload
+    const token = payload.token || response.data?.token || 'token_' + Date.now()
+
+    if (user) {
+      localStorage.setItem('fakenix_user', JSON.stringify(user))
+    }
+    if (token) {
+      localStorage.setItem('fakenix_token', token)
+    }
     return { success: true, user }
   },
 
@@ -41,7 +48,16 @@ export const authService = {
       return { success: true, user }
     }
     const response = await api.post('/auth/register', { name, email, password })
-    return response.data
+    const payload = response.data?.data || response.data
+    const user = payload.user || payload
+    const token = payload.token || response.data?.token
+    if (user) {
+      localStorage.setItem('fakenix_user', JSON.stringify(user))
+    }
+    if (token) {
+      localStorage.setItem('fakenix_token', token)
+    }
+    return { success: true, user }
   },
 
   logout() {
@@ -72,6 +88,11 @@ export const authService = {
       return { success: true, user: updated }
     }
     const response = await api.put('/user/profile', data)
-    return response.data
+    const payload = response.data?.data || response.data
+    const user = payload.user || payload
+    if (user) {
+      localStorage.setItem('fakenix_user', JSON.stringify(user))
+    }
+    return { success: true, user }
   }
 }
