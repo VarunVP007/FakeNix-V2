@@ -29,24 +29,27 @@ def jwt_required_custom(fn):
 
 def demo_mode_optional(fn):
     """
-    Decorator that allows demo tokens to pass through.
-    In DEMO_MODE=true, any token starting with 'demo_token_' is accepted
-    and g.current_user_id is set to the demo user ID (integer 1).
+    Decorator that allows demo mode or optional JWT tokens to pass through.
+    In DEMO_MODE=true, any token starting with 'demo_token_' or missing header
+    is accepted and g.current_user_id is set to 1.
     """
     @wraps(fn)
     def wrapper(*args, **kwargs):
+        auth_header = request.headers.get('Authorization', '')
         if current_app.config.get('DEMO_MODE'):
-            auth_header = request.headers.get('Authorization', '')
-            if auth_header.startswith('Bearer demo_token_'):
-                g.current_user_id = 1  # demo user ID (integer)
+            if not auth_header or auth_header.startswith('Bearer demo_token_'):
+                g.current_user_id = 1  # demo user ID
                 return fn(*args, **kwargs)
-        # Fall through to normal JWT verification
+        # Attempt JWT verification
         try:
-            verify_jwt_in_request()
+            verify_jwt_in_request(optional=True)
             identity = get_jwt_identity()
-            # JWT identity is stored as str(user.id); cast back to int for DB queries
-            g.current_user_id = int(identity) if identity is not None else None
-        except Exception as e:
-            return error_response(str(e), 401)
+            g.current_user_id = int(identity) if identity is not None else (1 if current_app.config.get('DEMO_MODE') else None)
+        except Exception:
+            if current_app.config.get('DEMO_MODE'):
+                g.current_user_id = 1
+                return fn(*args, **kwargs)
+            return error_response('Unauthorized', 401)
         return fn(*args, **kwargs)
     return wrapper
+

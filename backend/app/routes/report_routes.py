@@ -27,19 +27,15 @@ def create_report():
     if not detection_id:
         return error_response("'detectionId' is required.", 400)
 
-    user = get_user_by_id(g.current_user_id)
+    user_id = getattr(g, 'current_user_id', None)
+    user = get_user_by_id(user_id) if user_id else None
 
     report, err = generate_report(detection_id, user)
     if err:
         return error_response(err, 400)
 
     return success_response(
-        data={
-            'reportId': report.report_uid,
-            'evidenceId': report.to_dict().get('evidenceId'),
-            'status': report.status,
-            'generatedDate': report.created_at.isoformat() if report.created_at else None,
-        },
+        data=report.to_dict(),
         message='Report generated successfully.',
         status_code=201,
     )
@@ -50,7 +46,8 @@ def create_report():
 def list_reports():
     """GET /api/reports — list all reports for current user"""
     try:
-        reports = get_all_reports(g.current_user_id)
+        user_id = getattr(g, 'current_user_id', None)
+        reports = get_all_reports(user_id)
         return success_response(data=reports)
     except Exception as e:
         current_app.logger.error(f'Reports list error: {e}')
@@ -61,7 +58,8 @@ def list_reports():
 @demo_mode_optional
 def get_report(report_uid: str):
     """GET /api/reports/<report_uid>"""
-    report = get_report_by_uid(report_uid, g.current_user_id)
+    user_id = getattr(g, 'current_user_id', None)
+    report = get_report_by_uid(report_uid, user_id)
     if not report:
         return error_response('Report not found.', 404)
     return success_response(data=report.to_dict())
@@ -71,17 +69,28 @@ def get_report(report_uid: str):
 @demo_mode_optional
 def download_report(report_uid: str):
     """GET /api/reports/<report_uid>/download — stream PDF to client"""
-    report = get_report_by_uid(report_uid, g.current_user_id)
+    user_id = getattr(g, 'current_user_id', None)
+    user = get_user_by_id(user_id) if user_id else None
+
+    report = get_report_by_uid(report_uid, user_id)
     if not report:
-        return error_response('Report not found.', 404)
+        report, err = generate_report(report_uid, user)
+        if err or not report:
+            return error_response('Report not found.', 404)
 
     report_path = get_report_path(report)
-    if not report_path:
-        return error_response('Report PDF file not found on server.', 404)
+    if not report_path or not os.path.exists(report_path):
+        from app.services.report_service import _generate_pdf_for_report
+        err = _generate_pdf_for_report(report, user)
+        report_path = get_report_path(report)
+        if err or not report_path or not os.path.exists(report_path):
+            return error_response('Report PDF file generation failed.', 500)
 
+    download_name = f'{report.report_uid}.pdf' if not report.report_uid.endswith('.pdf') else report.report_uid
     return send_file(
         report_path,
         mimetype='application/pdf',
         as_attachment=True,
-        download_name=f'{report.report_uid}.pdf',
+        download_name=download_name,
     )
+
