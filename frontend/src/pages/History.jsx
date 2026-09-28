@@ -1,93 +1,108 @@
-import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import {
-  Search, Filter, Calendar, Download, Trash2, ArrowUpRight,
-  FileVideo, FileImage, Shield, RefreshCw, Layers
-} from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Search, Download, Trash2, ArrowUpRight, FileVideo, FileImage, Link2, Shield, RefreshCw } from 'lucide-react'
 import { detectionService } from '../services/detectionService'
+import { getErrorMessage } from '../services/api'
 import { ResultBadge, RiskBadge } from '../components/common/Badge'
-import { formatDateTime } from '../utils/formatters'
+import { LoadingState, ErrorState, EmptyView } from '../components/common/StateViews'
+import ConfirmDialog from '../components/common/ConfirmDialog'
+import { useAsync } from '../hooks/useAsync'
+import { formatDateTime, formatConfidence, parseDate, downloadBlob } from '../utils/formatters'
+import { clampPercent } from '../utils/normalize'
 import { useToast } from '../App'
+
+const TYPE_ICONS = { video: FileVideo, url: Link2 }
+
+// Quote a CSV cell and neutralise spreadsheet formula injection.
+const csvCell = (value) => {
+  let text = value === null || value === undefined ? '' : String(value)
+  if (/^[=+\-@]/.test(text)) text = `'${text}`
+  return `"${text.replace(/"/g, '""')}"`
+}
 
 export default function History() {
   const navigate = useNavigate()
   const { addToast } = useToast()
-  const [detections, setDetections] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { data: detections, setData: setDetections, loading, error, reload } = useAsync(
+    () => detectionService.getDetectionHistory(), [], { initialData: [] }
+  )
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '')
   const [resultFilter, setResultFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
   const [sortBy, setSortBy] = useState('newest')
+  const [pendingDelete, setPendingDelete] = useState(null)
+  const [deleting, setDeleting] = useState(false)
 
+  // Navbar search updates ?q= while this page is open.
   useEffect(() => {
-    loadData()
-  }, [])
+    const q = searchParams.get('q')
+    if (q !== null) setSearchTerm(q)
+  }, [searchParams])
 
-  const loadData = async () => {
-    setLoading(true)
-    const list = await detectionService.getDetectionHistory()
-    setDetections(list)
-    setLoading(false)
+  const filteredDetections = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    const ts = (d) => parseDate(d.timestamp)?.getTime() || 0
+    return detections
+      .filter((item) => {
+        const matchesSearch = !term ||
+          [item.fileName, item.evidenceId, item.sha256, item.id].some((v) => v && v.toLowerCase().includes(term))
+        const matchesResult = resultFilter === 'all' || item.result === resultFilter
+        const matchesType = typeFilter === 'all' || item.fileType === typeFilter
+        return matchesSearch && matchesResult && matchesType
+      })
+      .sort((a, b) => {
+        if (sortBy === 'oldest') return ts(a) - ts(b)
+        if (sortBy === 'probability') return (b.deepfakeProbability ?? -1) - (a.deepfakeProbability ?? -1)
+        return ts(b) - ts(a)
+      })
+  }, [detections, searchTerm, resultFilter, typeFilter, sortBy])
+
+  const hasFilters = searchTerm || resultFilter !== 'all' || typeFilter !== 'all'
+
+  const resetFilters = () => {
+    setSearchTerm('')
+    setResultFilter('all')
+    setTypeFilter('all')
+    if (searchParams.get('q')) setSearchParams({})
   }
 
-  const handleDelete = (id, e) => {
-    e.stopPropagation()
-    const updated = detections.filter((d) => d.id !== id)
-    setDetections(updated)
-    // Update local storage if present
-    const local = JSON.parse(localStorage.getItem('fakenix_history') || '[]')
-    const filteredLocal = local.filter((d) => d.id !== id)
-    localStorage.setItem('fakenix_history', JSON.stringify(filteredLocal))
-    addToast('Detection record removed from history.', 'info', 'Record Deleted')
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    setDeleting(true)
+    try {
+      await detectionService.deleteDetection(pendingDelete.id)
+      setDetections((prev) => prev.filter((d) => d.id !== pendingDelete.id))
+      addToast('Detection, evidence and related reports were deleted.', 'success', 'Record Deleted')
+      setPendingDelete(null)
+    } catch (err) {
+      addToast(getErrorMessage(err, 'Unable to delete this record.'), 'error', 'Delete Failed')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const handleExportCSV = () => {
-    if (detections.length === 0) return
-    const headers = 'Evidence ID,File Name,Type,Result,Risk,Confidence (%),Timestamp,SHA-256\n'
-    const rows = filteredDetections.map((d) =>
-      `"${d.evidenceId || ''}","${d.fileName || ''}","${d.fileType || ''}","${d.result || ''}","${d.risk || ''}","${d.confidence || 0}","${d.timestamp || ''}","${d.sha256 || ''}"`
-    ).join('\n')
-    const blob = new Blob([headers + rows], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `fakenix_forensic_history_${Date.now()}.csv`
-    a.click()
-    addToast('Forensic detection audit log exported as CSV.', 'success', 'Export Complete')
+    if (filteredDetections.length === 0) return
+    const header = ['Detection ID', 'Evidence ID', 'File Name', 'Type', 'Result', 'Risk', 'Deepfake Probability (%)', 'Timestamp (UTC)', 'SHA-256', 'Demo Result']
+    const rows = filteredDetections.map((d) => [
+      d.id, d.evidenceId, d.fileName, d.fileType, d.result, d.risk,
+      d.deepfakeProbability ?? '', parseDate(d.timestamp)?.toISOString() || '', d.sha256, d.isDemo ? 'yes' : 'no'
+    ].map(csvCell).join(','))
+    downloadBlob([header.map(csvCell).join(','), ...rows].join('\n'), `fakenix_detection_history_${Date.now()}.csv`, 'text/csv')
+    addToast(`Exported ${filteredDetections.length} record(s) as CSV.`, 'success', 'Export Complete')
   }
-
-  // Filter & Sort
-  const filteredDetections = detections.filter((item) => {
-    const term = searchTerm.toLowerCase()
-    const matchesSearch =
-      (item.fileName && item.fileName.toLowerCase().includes(term)) ||
-      (item.evidenceId && item.evidenceId.toLowerCase().includes(term)) ||
-      (item.sha256 && item.sha256.toLowerCase().includes(term))
-
-    const matchesResult = resultFilter === 'all' || item.result === resultFilter
-    const matchesType = typeFilter === 'all' || item.fileType === typeFilter
-
-    return matchesSearch && matchesResult && matchesType
-  }).sort((a, b) => {
-    if (sortBy === 'newest') return new Date(b.timestamp) - new Date(a.timestamp)
-    if (sortBy === 'oldest') return new Date(a.timestamp) - new Date(b.timestamp)
-    if (sortBy === 'confidence') return (b.confidence || 0) - (a.confidence || 0)
-    return 0
-  })
 
   return (
     <div className="animate-slideUp" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* Top Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+      <div className="page-toolbar">
         <div>
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 800, margin: 0 }}>Detection History</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: 4 }}>
-            Historical audit log of all scanned media, deepfake assessments, and evidence cryptographic records.
-          </p>
+          <h1 className="page-title">Detection History</h1>
+          <p className="page-subtitle">All media you have analyzed, with verdicts and evidence hashes.</p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-secondary btn-sm" onClick={handleExportCSV}>
-            <Download size={15} /> Export Audit Log
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button className="btn btn-secondary btn-sm" onClick={handleExportCSV} disabled={filteredDetections.length === 0}>
+            <Download size={15} /> Export CSV
           </button>
           <button className="btn btn-primary btn-sm" onClick={() => navigate('/detect')}>
             + New Detection
@@ -95,87 +110,68 @@ export default function History() {
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
       <div className="card" style={{ padding: '16px 20px' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'center' }}>
-          {/* Search Box */}
-          <div style={{ flex: '1 1 280px', position: 'relative' }}>
+          <div style={{ flex: '1 1 260px', position: 'relative' }}>
             <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
-              type="text"
-              placeholder="Search by file name, evidence ID, or SHA-256 hash..."
+              type="search"
+              placeholder="Search by file name, evidence ID, detection ID or SHA-256..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="form-control"
-              style={{ paddingLeft: 38, width: '100%' }}
+              style={{ paddingLeft: 38 }}
+              aria-label="Search detections"
             />
           </div>
-
-          {/* Result Filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Result:</span>
-            <select
-              value={resultFilter}
-              onChange={(e) => setResultFilter(e.target.value)}
-              className="form-control"
-              style={{ width: 'auto', padding: '6px 12px' }}
-            >
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            Result:
+            <select value={resultFilter} onChange={(e) => setResultFilter(e.target.value)} className="form-control" style={{ width: 'auto', padding: '6px 12px' }}>
               <option value="all">All Verdicts</option>
               <option value="deepfake">Deepfake</option>
-              <option value="real">Real / Authentic</option>
+              <option value="real">Authentic</option>
               <option value="suspicious">Suspicious</option>
             </select>
-          </div>
-
-          {/* Type Filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Type:</span>
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="form-control"
-              style={{ width: 'auto', padding: '6px 12px' }}
-            >
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            Type:
+            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="form-control" style={{ width: 'auto', padding: '6px 12px' }}>
               <option value="all">All Formats</option>
               <option value="image">Image</option>
               <option value="video">Video</option>
+              <option value="url">URL</option>
             </select>
-          </div>
-
-          {/* Sort */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Sort:</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="form-control"
-              style={{ width: 'auto', padding: '6px 12px' }}
-            >
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            Sort:
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="form-control" style={{ width: 'auto', padding: '6px 12px' }}>
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
-              <option value="confidence">Confidence: High to Low</option>
+              <option value="probability">Deepfake Probability</option>
             </select>
-          </div>
+          </label>
         </div>
       </div>
 
-      {/* Detections Table / List */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
-            <div className="loader-spinner" />
-          </div>
+          <LoadingState text="Loading detection history..." />
+        ) : error ? (
+          <ErrorState message={error} onRetry={reload} />
+        ) : detections.length === 0 ? (
+          <EmptyView
+            icon={Shield}
+            title="No detections yet"
+            description="Analyze an image or video and it will appear here."
+            action={<button className="btn btn-primary btn-sm" onClick={() => navigate('/detect')}>Start an analysis</button>}
+          />
         ) : filteredDetections.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-            <Shield size={42} color="var(--text-muted)" style={{ margin: '0 auto 12px' }} />
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>No detection logs found</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', maxWidth: 400, margin: '6px auto 16px' }}>
-              No detection records match your current search filters or query parameters.
-            </p>
-            <button className="btn btn-secondary btn-sm" onClick={() => { setSearchTerm(''); setResultFilter('all'); setTypeFilter('all') }}>
-              Reset Filters
-            </button>
-          </div>
+          <EmptyView
+            icon={Search}
+            title="No matching records"
+            description="No detections match your current search or filters."
+            action={hasFilters && <button className="btn btn-secondary btn-sm" onClick={resetFilters}><RefreshCw size={14} /> Reset Filters</button>}
+          />
         ) : (
           <div className="table-responsive">
             <table className="table" style={{ margin: 0 }}>
@@ -184,113 +180,90 @@ export default function History() {
                   <th>Media File & Evidence ID</th>
                   <th>Type</th>
                   <th>Verdict</th>
-                  <th>Confidence</th>
+                  <th>Deepfake Prob.</th>
                   <th>Risk Level</th>
                   <th>Timestamp</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredDetections.map((item) => (
-                  <tr
-                    key={item.id}
-                    onClick={() => navigate(`/result/${item.id}`)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: 8,
-                          background: 'var(--bg-secondary)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0
-                        }}>
-                          {item.fileType === 'video' ? (
-                            <FileVideo size={18} color="var(--accent-purple)" />
-                          ) : (
-                            <FileImage size={18} color="var(--accent-blue)" />
-                          )}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
-                            {item.fileName}
+                {filteredDetections.map((item) => {
+                  const Icon = TYPE_ICONS[item.fileType] || FileImage
+                  return (
+                    <tr key={item.id} onClick={() => navigate(`/result/${item.id}`)} style={{ cursor: 'pointer' }}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <Icon size={18} color={item.fileType === 'video' ? 'var(--accent-purple)' : 'var(--accent-blue)'} />
                           </div>
-                          <div style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                            {item.evidenceId || item.id}
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem', wordBreak: 'break-word' }}>
+                              {item.fileName || 'Unnamed file'}
+                              {item.isDemo && <span className="badge badge-purple" style={{ marginLeft: 6, fontSize: 10 }}>DEMO</span>}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                              {item.evidenceId || item.id}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-
-                    <td>
-                      <span style={{ textTransform: 'capitalize', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                        {item.fileType}
-                      </span>
-                    </td>
-
-                    <td>
-                      <ResultBadge result={item.result} />
-                    </td>
-
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{item.confidence}%</span>
-                        <div style={{
-                          width: 50,
-                          height: 5,
-                          background: 'var(--bg-secondary)',
-                          borderRadius: 3,
-                          overflow: 'hidden'
-                        }}>
-                          <div style={{
-                            width: `${item.confidence}%`,
-                            height: '100%',
-                            background: item.result === 'deepfake' ? 'var(--red)' : item.result === 'real' ? 'var(--green)' : 'var(--orange)'
-                          }} />
+                      </td>
+                      <td>
+                        <span style={{ textTransform: 'capitalize', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          {item.fileType || 'N/A'}
+                        </span>
+                      </td>
+                      <td><ResultBadge result={item.result} /></td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.9rem', whiteSpace: 'nowrap' }}>{formatConfidence(item.deepfakeProbability ?? item.confidence)}</span>
+                          <div style={{ width: 50, height: 5, background: 'var(--border)', borderRadius: 3, overflow: 'hidden', flexShrink: 0 }}>
+                            <div style={{
+                              width: `${clampPercent(item.deepfakeProbability ?? item.confidence)}%`,
+                              height: '100%',
+                              background: item.result === 'deepfake' ? 'var(--red)' : item.result === 'real' ? 'var(--green)' : 'var(--orange)'
+                            }} />
+                          </div>
                         </div>
-                      </div>
-                    </td>
-
-                    <td>
-                      <RiskBadge risk={item.risk} />
-                    </td>
-
-                    <td>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        {formatDateTime(item.timestamp)}
-                      </span>
-                    </td>
-
-                    <td>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }} onClick={(e) => e.stopPropagation()}>
-                        <button
-                          className="btn btn-ghost btn-sm"
-                          onClick={() => navigate(`/result/${item.id}`)}
-                          title="Open Forensic Result"
-                        >
-                          <ArrowUpRight size={15} />
-                        </button>
-                        <button
-                          className="btn btn-ghost btn-sm"
-                          style={{ color: 'var(--text-muted)' }}
-                          onClick={(e) => handleDelete(item.id, e)}
-                          title="Delete Record"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td><RiskBadge risk={item.risk} /></td>
+                      <td>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{formatDateTime(item.timestamp)}</span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }} onClick={(e) => e.stopPropagation()}>
+                          <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/result/${item.id}`)} title="Open result" aria-label="Open result">
+                            <ArrowUpRight size={15} />
+                          </button>
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            style={{ color: 'var(--text-muted)' }}
+                            onClick={() => setPendingDelete(item)}
+                            title="Delete record"
+                            aria-label="Delete record"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={!!pendingDelete}
+        title="Delete detection record?"
+        message={`This permanently deletes "${pendingDelete?.fileName || pendingDelete?.id}" together with its evidence record and any generated reports from the server. This cannot be undone.`}
+        confirmLabel="Delete"
+        danger
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   )
 }

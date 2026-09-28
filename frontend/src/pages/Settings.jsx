@@ -1,262 +1,164 @@
-import { useState } from 'react'
-import {
-  Settings as SettingsIcon, User, Cpu, Shield, Key, Bell,
-  Save, RefreshCw, CheckCircle, Sliders, Lock
-} from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { User, Save, LogOut, Server } from 'lucide-react'
 import { useAppAuth, useToast } from '../App'
+import { authService } from '../services/authService'
+import { API_BASE_URL, getErrorMessage } from '../services/api'
+import { LoadingState, ErrorState, InfoRow } from '../components/common/StateViews'
+import { formatDate } from '../utils/formatters'
 
 export default function Settings() {
-  const { user } = useAppAuth()
+  const { user, login, logout } = useAppAuth()
   const { addToast } = useToast()
+  const navigate = useNavigate()
 
-  const [activeTab, setActiveTab] = useState('engine')
-  const [engineSettings, setEngineSettings] = useState({
-    model: 'efficientnet_b4',
-    confidenceThreshold: 75,
-    samplingRate: 'medium',
-    autoSealEvidence: true,
-    audioAnalysisEnabled: true,
-    exifPreservation: true
-  })
+  const [profile, setProfile] = useState(user)
+  const [form, setForm] = useState({ name: user?.name || '', organization: user?.organization || '' })
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [nameError, setNameError] = useState('')
 
-  const [profile, setProfile] = useState({
-    name: user?.name || 'Cyber Investigator',
-    email: user?.email || 'investigator@cybercell.gov',
-    organization: user?.organization || 'Cyber Forensic Bureau',
-    role: user?.role || 'Senior Digital Forensics Analyst'
-  })
-
-  const [apiKey, setApiKey] = useState('fx_live_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d')
-
-  const handleSave = (e) => {
-    e.preventDefault()
-    addToast('Forensic engine settings and preferences saved.', 'success', 'Preferences Updated')
+  const loadProfile = async () => {
+    setLoading(true)
+    setLoadError(null)
+    try {
+      const fresh = await authService.getProfile()
+      if (fresh) {
+        setProfile(fresh)
+        setForm({ name: fresh.name || '', organization: fresh.organization || '' })
+        login(fresh)
+      }
+    } catch (err) {
+      setLoadError(getErrorMessage(err, 'Unable to load your profile.'))
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleRegenerateKey = () => {
-    const newKey = 'fx_live_' + Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
-    setApiKey(newKey)
-    addToast('API secret key regenerated. Update active webhook integrations.', 'info', 'Key Regenerated')
+  useEffect(() => {
+    loadProfile()
+  }, []) // eslint-disable-line
+
+  const dirty = form.name.trim() !== (profile?.name || '') || form.organization.trim() !== (profile?.organization || '')
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    if (!form.name.trim()) {
+      setNameError('Name is required.')
+      return
+    }
+    setSaving(true)
+    try {
+      const { user: updated } = await authService.updateProfile({
+        name: form.name.trim(),
+        organization: form.organization.trim()
+      })
+      if (updated) {
+        setProfile(updated)
+        setForm({ name: updated.name || '', organization: updated.organization || '' })
+        login(updated)
+      }
+      addToast('Your profile was updated.', 'success', 'Profile Saved')
+    } catch (err) {
+      addToast(getErrorMessage(err, 'Unable to update your profile.'), 'error', 'Save Failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
   }
 
   return (
     <div className="animate-slideUp" style={{ maxWidth: 880, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* Header */}
       <div>
-        <h1 style={{ fontSize: '1.6rem', fontWeight: 800, margin: 0 }}>System Settings & AI Engine Configuration</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: 4 }}>
-          Fine-tune neural network detection models, sensitivity thresholds, evidence sealing, and developer API credentials.
-        </p>
+        <h1 className="page-title">Settings</h1>
+        <p className="page-subtitle">Manage your investigator profile and session.</p>
       </div>
 
-      {/* Settings Navigation Tabs */}
-      <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border-color)', paddingBottom: 10 }}>
-        <button
-          className={`btn ${activeTab === 'engine' ? 'btn-primary' : 'btn-ghost'} btn-sm`}
-          onClick={() => setActiveTab('engine')}
-        >
-          <Cpu size={15} /> AI Detection Models
-        </button>
-        <button
-          className={`btn ${activeTab === 'profile' ? 'btn-primary' : 'btn-ghost'} btn-sm`}
-          onClick={() => setActiveTab('profile')}
-        >
-          <User size={15} /> Investigator Profile
-        </button>
-        <button
-          className={`btn ${activeTab === 'api' ? 'btn-primary' : 'btn-ghost'} btn-sm`}
-          onClick={() => setActiveTab('api')}
-        >
-          <Key size={15} /> API & Integrations
-        </button>
-      </div>
-
-      {/* Tab: Engine Settings */}
-      {activeTab === 'engine' && (
-        <form onSubmit={handleSave} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-          <div className="card-title">Neural Forensic Engine Calibration</div>
-
-          <div className="form-group">
-            <label className="form-label">Primary AI Classification Architecture</label>
-            <select
-              value={engineSettings.model}
-              onChange={(e) => setEngineSettings({ ...engineSettings, model: e.target.value })}
-              className="form-control"
-            >
-              <option value="efficientnet_b4">EfficientNet-B4 + MesoInception (Recommended — 96.8% Benchmark Accuracy)</option>
-              <option value="xception_forensics">XceptionNet Deepfake Forensics (High sensitivity to facial boundary seams)</option>
-              <option value="resnet50_gan">ResNet-50 GAN Noise Residual Detector (Optimized for latent diffusion artifacts)</option>
-            </select>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
-              Ensemble weights combine spatial convolutional feature maps with temporal recurrent analysis across sequential video frames.
-            </span>
-          </div>
-
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-              <label className="form-label" style={{ margin: 0 }}>High-Risk Anomaly Sensitivity Threshold</label>
-              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--accent-cyan)' }}>
-                {engineSettings.confidenceThreshold}%
-              </span>
-            </div>
-            <input
-              type="range"
-              min="50"
-              max="95"
-              value={engineSettings.confidenceThreshold}
-              onChange={(e) => setEngineSettings({ ...engineSettings, confidenceThreshold: Number(e.target.value) })}
-              style={{ width: '100%', accentColor: 'var(--accent-cyan)' }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
-              <span>50% (High Recall / Aggressive)</span>
-              <span>75% (Balanced Recommended)</span>
-              <span>95% (High Precision / Conservative)</span>
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Video Frame Sampling Density</label>
-            <select
-              value={engineSettings.samplingRate}
-              onChange={(e) => setEngineSettings({ ...engineSettings, samplingRate: e.target.value })}
-              className="form-control"
-            >
-              <option value="fast">Rapid Scan (1 keyframe per second — Fast)</option>
-              <option value="medium">Balanced Forensics (4 frames per second — Standard)</option>
-              <option value="dense">Full Spectrum Forensics (Every frame — Maximum Rigor)</option>
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 10, borderTop: '1px solid var(--border-color)' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.85rem' }}>
-              <input
-                type="checkbox"
-                checked={engineSettings.autoSealEvidence}
-                onChange={(e) => setEngineSettings({ ...engineSettings, autoSealEvidence: e.target.checked })}
-                style={{ accentColor: 'var(--accent-cyan)' }}
-              />
-              <span>Automatically generate SHA-256 evidence certificate & ledger stamp upon detection completion</span>
-            </label>
-
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: '0.85rem' }}>
-              <input
-                type="checkbox"
-                checked={engineSettings.audioAnalysisEnabled}
-                onChange={(e) => setEngineSettings({ ...engineSettings, audioAnalysisEnabled: e.target.checked })}
-                style={{ accentColor: 'var(--accent-cyan)' }}
-              />
-              <span>Perform neural vocoder spectral analysis on accompanying audio tracks</span>
-            </label>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
-            <button type="submit" className="btn btn-primary">
-              <Save size={15} /> Save Engine Configuration
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Tab: Profile Settings */}
-      {activeTab === 'profile' && (
-        <form onSubmit={handleSave} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <div className="card-title">Forensic Investigator Credentials</div>
-
-          <div className="grid grid-2" style={{ gap: 16 }}>
-            <div className="form-group">
-              <label className="form-label">Investigator Name</label>
-              <input
-                type="text"
-                value={profile.name}
-                onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                className="form-control"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Official Email</label>
-              <input
-                type="email"
-                value={profile.email}
-                onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                className="form-control"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-2" style={{ gap: 16 }}>
-            <div className="form-group">
-              <label className="form-label">Organization / Agency</label>
-              <input
-                type="text"
-                value={profile.organization}
-                onChange={(e) => setProfile({ ...profile, organization: e.target.value })}
-                className="form-control"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Forensic Role / Title</label>
-              <input
-                type="text"
-                value={profile.role}
-                onChange={(e) => setProfile({ ...profile, role: e.target.value })}
-                className="form-control"
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
-            <button type="submit" className="btn btn-primary">
-              <Save size={15} /> Update Profile
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Tab: API Credentials */}
-      {activeTab === 'api' && (
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div className="card-title">Developer & SIEM REST API Credentials</div>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
-            Use this API key to integrate FAKENIX 2.0 automated deepfake scanning into your corporate SOC, SIEM pipelines, or social media moderation bots.
-          </p>
-
-          <div className="form-group">
-            <label className="form-label">Production API Secret Key</label>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <input
-                type="text"
-                readOnly
-                value={apiKey}
-                className="form-control"
-                style={{ fontFamily: 'var(--font-mono)', background: 'var(--bg-secondary)', color: 'var(--accent-cyan)' }}
-              />
-              <button
-                className="btn btn-secondary"
-                onClick={() => {
-                  navigator.clipboard.writeText(apiKey)
-                  addToast('API key copied to clipboard.', 'info', 'Copied')
-                }}
-              >
-                Copy
-              </button>
-              <button className="btn btn-ghost" onClick={handleRegenerateKey}>
-                <RefreshCw size={15} /> Regenerate
-              </button>
-            </div>
-          </div>
-
-          <div style={{ padding: 16, background: 'var(--bg-secondary)', borderRadius: 8 }}>
-            <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: 6 }}>Example Forensic Scan Request:</div>
-            <pre style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', overflowX: 'auto' }}>
-              {`curl -X POST https://api.fakenix.ai/v2/detect \\
-  -H "Authorization: Bearer ${apiKey}" \\
-  -F "file=@surveillance_evidence.mp4"`}
-            </pre>
-          </div>
+      <form onSubmit={handleSave} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <User size={18} color="var(--brand-primary)" />
+          <div className="card-title">Profile</div>
         </div>
-      )}
+
+        {loading && !profile ? (
+          <LoadingState text="Loading profile..." />
+        ) : loadError && !profile ? (
+          <ErrorState message={loadError} onRetry={loadProfile} />
+        ) : (
+          <>
+            {loadError && (
+              <div role="alert" style={{ fontSize: 12.5, color: 'var(--orange-text)', background: 'var(--orange-bg)', border: '1px solid var(--orange-border)', borderRadius: 'var(--radius)', padding: '8px 12px' }}>
+                Showing cached profile. {loadError}
+              </div>
+            )}
+            <div className="grid-2" style={{ gap: 16 }}>
+              <div className="form-group">
+                <label className="form-label" htmlFor="profile-name">Name</label>
+                <input
+                  id="profile-name"
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => { setForm({ ...form, name: e.target.value }); setNameError('') }}
+                  className="form-control"
+                  autoComplete="name"
+                  maxLength={120}
+                />
+                {nameError && <span role="alert" style={{ fontSize: 12, color: 'var(--red-text)' }}>{nameError}</span>}
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="profile-org">Organization</label>
+                <input
+                  id="profile-org"
+                  type="text"
+                  value={form.organization}
+                  onChange={(e) => setForm({ ...form, organization: e.target.value })}
+                  className="form-control"
+                  autoComplete="organization"
+                  maxLength={160}
+                />
+              </div>
+            </div>
+
+            <div className="grid-2" style={{ gap: 16 }}>
+              <div className="form-group">
+                <label className="form-label" htmlFor="profile-email">Email</label>
+                <input id="profile-email" type="email" value={profile?.email || ''} readOnly className="form-control" />
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Email cannot be changed from the app.</span>
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="profile-role">Role</label>
+                <input id="profile-role" type="text" value={profile?.role || ''} readOnly className="form-control" />
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Roles are assigned by an administrator.</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="submit" className="btn btn-primary" disabled={saving || !dirty}>
+                {saving ? <span className="loader-spinner sm" /> : <Save size={15} />} {saving ? 'Saving...' : 'Save Profile'}
+              </button>
+            </div>
+          </>
+        )}
+      </form>
+
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <Server size={18} color="var(--brand-primary)" />
+          <div className="card-title">Account & Connection</div>
+        </div>
+        <InfoRow label="Member since" value={profile?.joinDate ? formatDate(profile.joinDate) : null} />
+        <InfoRow label="API server" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{API_BASE_URL}</span>} />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+          <button type="button" className="btn btn-danger btn-sm" onClick={handleLogout}>
+            <LogOut size={14} /> Log out
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

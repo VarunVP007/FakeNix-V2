@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import { detectionService } from '../../services/detectionService'
+import { getErrorMessage } from '../../services/api'
 
 const MONTH_NAMES_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const MONTH_NAMES_LONG = [
@@ -59,8 +60,7 @@ export function DetectionTrendChart({ days = 11, customData = null }) {
         setTrendData([])
       }
     } catch (err) {
-      console.error('Error fetching detection trend:', err)
-      setError('Unable to load detection trend.')
+      setError(getErrorMessage(err, 'Unable to load detection trend.'))
     } finally {
       setLoading(false)
     }
@@ -138,6 +138,10 @@ export function DetectionTrendChart({ days = 11, customData = null }) {
     )
   }
 
+  if (!loading && !error && trendData.every((d) => !d.total)) {
+    return <ChartEmpty height={220} text={`No detections in the last ${days} days.`} />
+  }
+
   return (
     <ResponsiveContainer width="100%" height={220}>
       <LineChart data={trendData} margin={{ top: 5, right: 10, bottom: 5, left: -20 }}>
@@ -161,13 +165,22 @@ export function DetectionTrendChart({ days = 11, customData = null }) {
   )
 }
 
-export function DistributionPieChart({ real = 87, deepfake = 37, suspicious = 18 }) {
+function ChartEmpty({ height = 200, text = 'No detections yet.' }) {
+  return (
+    <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 16 }}>
+      {text}
+    </div>
+  )
+}
+
+export function DistributionPieChart({ real = 0, deepfake = 0, suspicious = 0 }) {
   const data = [
-    { name: 'Real', value: real },
-    { name: 'Deepfake', value: deepfake },
-    { name: 'Suspicious', value: suspicious }
-  ]
-  const COLORS = ['#22c55e', '#ef4444', '#f97316']
+    { name: 'Real', value: real, color: '#22c55e' },
+    { name: 'Deepfake', value: deepfake, color: '#ef4444' },
+    { name: 'Suspicious', value: suspicious, color: '#f97316' }
+  ].filter((d) => d.value > 0)
+
+  if (data.length === 0) return <ChartEmpty text="No detections to chart yet." />
 
   return (
     <ResponsiveContainer width="100%" height={200}>
@@ -178,11 +191,11 @@ export function DistributionPieChart({ real = 87, deepfake = 37, suspicious = 18
           cy="50%"
           innerRadius={55}
           outerRadius={80}
-          paddingAngle={3}
+          paddingAngle={data.length > 1 ? 3 : 0}
           dataKey="value"
         >
-          {data.map((_, index) => (
-            <Cell key={index} fill={COLORS[index]} />
+          {data.map((d) => (
+            <Cell key={d.name} fill={d.color} />
           ))}
         </Pie>
         <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
@@ -192,18 +205,21 @@ export function DistributionPieChart({ real = 87, deepfake = 37, suspicious = 18
   )
 }
 
-export function MediaTypeChart() {
+export function MediaTypeChart({ image = 0, video = 0, url = 0 }) {
   const data = [
-    { type: 'Image', count: 58 },
-    { type: 'Video', count: 71 }
+    { type: 'Image', count: image },
+    { type: 'Video', count: video },
+    ...(url > 0 ? [{ type: 'URL', count: url }] : [])
   ]
+
+  if (image + video + url === 0) return <ChartEmpty text="No analyzed media yet." />
 
   return (
     <ResponsiveContainer width="100%" height={200}>
       <BarChart data={data} margin={{ top: 5, right: 10, bottom: 5, left: -20 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
         <XAxis dataKey="type" tick={{ fontSize: 12, fill: '#94a3b8' }} />
-        <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+        <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} allowDecimals={false} />
         <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
         <Bar dataKey="count" fill="#2563eb" radius={[4, 4, 0, 0]} name="Files" />
       </BarChart>

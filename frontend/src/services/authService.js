@@ -1,77 +1,66 @@
-import api, { isDemoMode, delay } from './api'
-import { mockUsers, DEMO_CREDENTIALS } from '../data/mockUsers'
+import api, { unwrap } from './api'
+
+const USER_KEY = 'fakenix_user'
+const TOKEN_KEY = 'fakenix_token'
+
+function storeSession(user, token) {
+  if (!user || !token) {
+    throw new Error('The server did not return a valid session.')
+  }
+  localStorage.setItem(USER_KEY, JSON.stringify(user))
+  localStorage.setItem(TOKEN_KEY, token)
+}
 
 export const authService = {
   async login(email, password) {
-    if (isDemoMode()) {
-      await delay(1200)
-      // Accept demo credentials or any reasonable email/password
-      const isDemo =
-        email === DEMO_CREDENTIALS.email && password === DEMO_CREDENTIALS.password
-      const isAny = email.includes('@') && password.length >= 6
-      if (isDemo || isAny) {
-        const user = {
-          ...mockUsers[0],
-          email: email,
-          name: isDemo ? mockUsers[0].name : email.split('@')[0]
-        }
-        localStorage.setItem('fakenix_user', JSON.stringify(user))
-        localStorage.setItem('fakenix_token', 'demo_token_' + Date.now())
-        localStorage.setItem('fakenix_demo_mode', 'true')
-        return { success: true, user }
-      } else {
-        throw new Error('Invalid email or password')
-      }
-    }
-    // Real backend call
     const response = await api.post('/auth/login', { email, password })
-    const { user, token } = response.data
-    localStorage.setItem('fakenix_user', JSON.stringify(user))
-    localStorage.setItem('fakenix_token', token)
+    const { user, token } = unwrap(response) || {}
+    storeSession(user, token)
     return { success: true, user }
   },
 
   async register(name, email, password) {
-    if (isDemoMode()) {
-      await delay(1500)
-      const user = { ...mockUsers[0], name, email }
-      localStorage.setItem('fakenix_user', JSON.stringify(user))
-      localStorage.setItem('fakenix_token', 'demo_token_' + Date.now())
-      localStorage.setItem('fakenix_demo_mode', 'true')
-      return { success: true, user }
-    }
     const response = await api.post('/auth/register', { name, email, password })
-    return response.data
+    const { user, token } = unwrap(response) || {}
+    storeSession(user, token)
+    return { success: true, user }
   },
 
   logout() {
-    localStorage.removeItem('fakenix_user')
-    localStorage.removeItem('fakenix_token')
+    localStorage.removeItem(USER_KEY)
+    localStorage.removeItem(TOKEN_KEY)
+    // Left behind by the old client-side demo mode.
     localStorage.removeItem('fakenix_demo_mode')
+    localStorage.removeItem('fakenix_history')
   },
 
+  /** The cached user, only while a token is also present. */
   getCurrentUser() {
     try {
-      const user = localStorage.getItem('fakenix_user')
-      return user ? JSON.parse(user) : null
+      if (!localStorage.getItem(TOKEN_KEY)) return null
+      const user = JSON.parse(localStorage.getItem(USER_KEY) || 'null')
+      return user && typeof user === 'object' ? user : null
     } catch {
       return null
     }
   },
 
   isAuthenticated() {
-    return !!localStorage.getItem('fakenix_token')
+    return !!localStorage.getItem(TOKEN_KEY)
   },
 
+  async getProfile() {
+    const response = await api.get('/user/profile')
+    const { user } = unwrap(response) || {}
+    if (user) localStorage.setItem(USER_KEY, JSON.stringify(user))
+    return user || null
+  },
+
+  /** The backend accepts `name` and `organization`. */
   async updateProfile(data) {
-    if (isDemoMode()) {
-      await delay(800)
-      const currentUser = this.getCurrentUser()
-      const updated = { ...currentUser, ...data }
-      localStorage.setItem('fakenix_user', JSON.stringify(updated))
-      return { success: true, user: updated }
-    }
     const response = await api.put('/user/profile', data)
-    return response.data
+    const { user } = unwrap(response) || {}
+    if (user) localStorage.setItem(USER_KEY, JSON.stringify(user))
+    return { success: true, user }
   }
 }

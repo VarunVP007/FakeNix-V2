@@ -1,6 +1,6 @@
-import { Shield, FileText, AlertTriangle } from 'lucide-react'
+import { Shield, CheckCircle, AlertTriangle } from 'lucide-react'
 
-export default function ImpactCard({ user }) {
+export default function ImpactCard({ filesAnalyzed = 0, authenticVerified = 0, threatsIdentified = 0 }) {
   return (
     <div className="card" style={{ background: 'linear-gradient(135deg, #0f172a, #1e3a5f)', border: 'none' }}>
       <div className="card-header" style={{ marginBottom: 20 }}>
@@ -23,11 +23,11 @@ export default function ImpactCard({ user }) {
           SDG 16
         </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 12 }}>
         {[
-          { icon: Shield, label: 'Files Analyzed', value: user?.totalAnalyses || 142, color: '#60a5fa' },
-          { icon: FileText, label: 'Reports Submitted', value: user?.reportsGenerated || 24, color: '#34d399' },
-          { icon: AlertTriangle, label: 'Threats Identified', value: 37, color: '#f87171' }
+          { icon: Shield, label: 'Files Analyzed', value: filesAnalyzed, color: '#60a5fa' },
+          { icon: CheckCircle, label: 'Authentic Media', value: authenticVerified, color: '#34d399' },
+          { icon: AlertTriangle, label: 'Threats Identified', value: threatsIdentified, color: '#f87171' }
         ].map(({ icon: Icon, label, value, color }) => (
           <div
             key={label}
@@ -43,7 +43,7 @@ export default function ImpactCard({ user }) {
             <div style={{ fontSize: 22, fontWeight: 900, color: 'white', letterSpacing: -0.5 }}>
               {value}
             </div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 3, fontWeight: 500 }}>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3, fontWeight: 500 }}>
               {label}
             </div>
           </div>

@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useState, useEffect, createContext, useContext } from 'react'
+import { useState, useCallback, useMemo, createContext, useContext } from 'react'
 import { authService } from './services/authService'
 
 // Layout
@@ -19,7 +19,6 @@ import Dashboard from './pages/Dashboard'
 import Detect from './pages/Detect'
 import ImageAnalysis from './pages/ImageAnalysis'
 import VideoAnalysis from './pages/VideoAnalysis'
-import Processing from './pages/Processing'
 import Result from './pages/Result'
 import FrameAnalysis from './pages/FrameAnalysis'
 import History from './pages/History'
@@ -48,28 +47,30 @@ function App() {
   const [user, setUser] = useState(authService.getCurrentUser())
   const [toasts, setToasts] = useState([])
 
-  const login = (userData) => setUser(userData)
-  const logout = () => {
+  const login = useCallback((userData) => setUser(userData), [])
+  const logout = useCallback(() => {
     authService.logout()
     setUser(null)
-  }
+  }, [])
 
-  const addToast = (message, type = 'info', title = '') => {
-    const id = Date.now() + Math.random()
-    setToasts((prev) => [...prev, { id, message, type, title }])
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id))
-    }, 4500)
-  }
-
-  const removeToast = (id) => {
+  const removeToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id))
-  }
+  }, [])
+
+  const addToast = useCallback((message, type = 'info', title = '') => {
+    const id = Date.now() + Math.random()
+    // Keep at most 4 toasts on screen.
+    setToasts((prev) => [...prev.slice(-3), { id, message, type, title }])
+    setTimeout(() => removeToast(id), 4500)
+  }, [removeToast])
+
+  const authValue = useMemo(() => ({ user, login, logout, isAuthenticated: !!user }), [user, login, logout])
+  const toastValue = useMemo(() => ({ addToast }), [addToast])
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
-      <ToastContext.Provider value={{ addToast }}>
-        <BrowserRouter>
+    <AuthContext.Provider value={authValue}>
+      <ToastContext.Provider value={toastValue}>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             {/* Public */}
             <Route path="/" element={<Landing />} />
@@ -84,7 +85,7 @@ function App() {
                 <Route path="/detect/image" element={<ImageAnalysis />} />
                 <Route path="/detect/video" element={<VideoAnalysis />} />
                 <Route path="/detect/url" element={<Navigate to="/detect" replace />} />
-                <Route path="/analysis/processing" element={<Processing />} />
+                <Route path="/analysis/processing" element={<Navigate to="/detect" replace />} />
                 <Route path="/result/:id" element={<Result />} />
                 <Route path="/result/:id/frames" element={<FrameAnalysis />} />
                 <Route path="/history" element={<History />} />

@@ -43,6 +43,13 @@ class BaseConfig:
         os.environ.get('MODEL_PATH', 'models/fakenix_model.keras')
     )
 
+    # Groq vision LLM (image/video deepfake analysis). When GROQ_API_KEY is set,
+    # all uploads are analyzed by this model and DEMO_MODE is not used for them.
+    GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
+    GROQ_MODEL = os.environ.get('GROQ_MODEL', '')
+    GROQ_TIMEOUT_SECONDS = float(os.environ.get('GROQ_TIMEOUT_SECONDS', 90))
+    GROQ_VIDEO_FRAMES = int(os.environ.get('GROQ_VIDEO_FRAMES', 2))  # frames per video; must not exceed the model's image limit
+
     # Demo mode
     DEMO_MODE = os.environ.get('DEMO_MODE', 'true').lower() == 'true'
 

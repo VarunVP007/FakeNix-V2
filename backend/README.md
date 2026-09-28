@@ -206,20 +206,20 @@ LOG_LEVEL=INFO
 cd backend
 
 # Step 1: Initialize migrations folder (first time only)
-flask db init
+uv run flask db init
 
 # Step 2: Generate migration from models
-flask db migrate -m "Initial database schema"
+uv run flask db migrate -m "Initial database schema"
 
 # Step 3: Apply migration to database
-flask db upgrade
+uv run flask db upgrade
 ```
 
 ### Option B — Using init_db.py (Quick setup)
 
 ```bash
 cd backend
-python scripts/init_db.py
+uv run python scripts/init_db.py
 ```
 
 This runs `db.create_all()` which is safe and idempotent — it skips existing tables.
@@ -232,19 +232,19 @@ This runs `db.create_all()` which is safe and idempotent — it skips existing t
 
 ```bash
 # Show current migration status
-flask db current
+uv run flask db current
 
 # Show migration history
-flask db history
+uv run flask db history
 
 # Apply all pending migrations
-flask db upgrade
+uv run flask db upgrade
 
 # Roll back one migration (USE WITH CAUTION — data loss possible)
-flask db downgrade
+uv run flask db downgrade
 
 # Generate a new migration after model changes
-flask db migrate -m "Add field X to detections"
+uv run flask db migrate -m "Add field X to detections"
 ```
 
 > **Destructive commands** (`DROP TABLE`, `downgrade`) are never run automatically.
@@ -254,18 +254,58 @@ flask db migrate -m "Add field X to detections"
 
 ## 7. Running the Backend
 
+The backend is managed with [uv](https://docs.astral.sh/uv/). Dependencies are declared in
+`pyproject.toml` and pinned in `uv.lock`; the Python version is pinned in `.python-version` (3.12).
+
 ```bash
 cd backend
 
-# Install dependencies
-pip install -r requirements.txt
+# Create .venv and install dependencies (including the dev group: pytest etc.)
+uv sync
 
 # Initialize database
-python scripts/init_db.py
+uv run python scripts/init_db.py
 
 # Start the Flask development server
-python run.py
+uv run python run.py
 ```
+
+### AI analysis (Groq)
+
+Every image and video upload is analyzed by a vision LLM through the Groq API
+(`app/ai/groq_analyzer.py`). Configure it in `.env`:
+
+| Variable               | Required | Description                                                    |
+|------------------------|----------|----------------------------------------------------------------|
+| `GROQ_API_KEY`         | yes      | Groq API key                                                   |
+| `GROQ_MODEL`           | yes      | Vision-capable model, e.g. `qwen/qwen3.8-27b`                  |
+| `GROQ_TIMEOUT_SECONDS` | no       | Request timeout (default 90)                                   |
+| `GROQ_VIDEO_FRAMES`    | no       | Frames sampled per video, sent in one request (default 2)      |
+
+- Images are sent as one JPEG (longest side up to 1280 px) together with extracted metadata.
+- Videos: `GROQ_VIDEO_FRAMES` frames are sampled evenly and analyzed in a single request;
+  the model returns an overall verdict plus a probability per frame.
+- The model must answer with a JSON verdict (`real` / `fake` / `uncertain`), a 0–100 deepfake
+  probability, visible indicators and an explanation. `fake` maps to `deepfake`, `uncertain`
+  to `suspicious`; the risk level is derived from the probability.
+- There is no offline or demo fallback. If the key is missing or the Groq call fails, the upload
+  returns HTTP 502 with the reason and no detection is stored.
+- Limits observed for `qwen/qwen3.8-27b`: at most 3 images per request; each image costs
+  ~1,800 input tokens, and the on-demand tier allows 7,000 input tokens per minute. That means
+  roughly 2 image analyses or 1 video analysis per minute before Groq rate-limits (the client
+  retries automatically).
+- The test suite also calls Groq for the upload tests; it reads the `GROQ_*` values from `.env`.
+
+Managing dependencies:
+
+```bash
+uv add <package>            # add a runtime dependency
+uv add --dev <package>      # add a development-only dependency
+uv remove <package>         # remove a dependency
+uv lock --upgrade           # upgrade locked versions
+```
+
+Commit both `pyproject.toml` and `uv.lock`. Do not use `pip install` in this project.
 
 The backend runs at: http://127.0.0.1:5000
 
@@ -276,7 +316,7 @@ Health check: http://127.0.0.1:5000/api/health
 ## 8. Running the Frontend
 
 ```bash
-# From the project root (Depfake Detection Project/)
+cd frontend
 npm install
 npm run dev
 ```
@@ -291,13 +331,13 @@ The frontend runs at: http://localhost:5173
 cd backend
 
 # Run all tests
-pytest tests/ -v
+uv run pytest -v
 
 # Run only database tests
-pytest tests/test_database.py -v
+uv run pytest tests/test_database.py -v
 
 # Run with coverage
-pytest tests/ --cov=app --cov-report=term-missing
+uv run pytest --cov=app --cov-report=term-missing
 ```
 
 Tests use an **in-memory SQLite** database (configured in `TestingConfig`).
@@ -318,7 +358,7 @@ Production data is never touched during testing.
 
 ```bash
 cd backend
-python scripts/seed_demo_data.py
+uv run python scripts/seed_demo_data.py
 ```
 
 Creates:

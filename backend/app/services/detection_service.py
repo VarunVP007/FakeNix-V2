@@ -38,8 +38,8 @@ def run_image_detection(file_path: str, file_name: str, user_id: int = None) -> 
     meta = extract_image_metadata(file_path)
     basic = extract_basic_metadata(file_path, file_name)
 
-    # Step 3: AI Inference
-    inference = _run_inference(file_path, file_type='image')
+    # Step 3: AI Inference (Groq vision LLM)
+    inference = _run_inference(file_path, file_type='image', metadata={**meta, **basic})
 
     # Step 4: Persist
     detection_uid = f'det_{uuid.uuid4().hex[:12]}'
@@ -61,7 +61,7 @@ def run_image_detection(file_path: str, file_name: str, user_id: int = None) -> 
         status='complete',
         indicators_json=json.dumps(inference.get('indicators', [])),
         frames_json=json.dumps([]),
-        metadata_json=json.dumps({**meta, **basic}),
+        metadata_json=json.dumps({**meta, **basic, 'aiExplanation': inference.get('explanation')}),
     )
     db.session.add(detection)
     db.session.flush()  # Get detection.id before creating evidence
@@ -98,8 +98,8 @@ def run_video_detection(file_path: str, file_name: str, user_id: int = None) -> 
     meta = extract_video_metadata(file_path)
     basic = extract_basic_metadata(file_path, file_name)
 
-    # AI inference with frame sampling
-    inference = _run_inference(file_path, file_type='video')
+    # AI inference on sampled frames (Groq vision LLM)
+    inference = _run_inference(file_path, file_type='video', metadata={**meta, **basic})
 
     detection_uid = f'det_{uuid.uuid4().hex[:12]}'
     duration_str = meta.get('duration', None)
@@ -123,7 +123,7 @@ def run_video_detection(file_path: str, file_name: str, user_id: int = None) -> 
         status='complete',
         indicators_json=json.dumps(inference.get('indicators', [])),
         frames_json=json.dumps(inference.get('frames', [])),
-        metadata_json=json.dumps({**meta, **basic}),
+        metadata_json=json.dumps({**meta, **basic, 'aiExplanation': inference.get('explanation')}),
     )
     db.session.add(detection)
     db.session.flush()
@@ -259,78 +259,15 @@ def delete_detection(detection_uid: str, user_id: int) -> bool:
 # Internal: AI inference dispatch
 # ──────────────────────────────────────────────────────────────
 
-def _run_inference(file_path: str, file_type: str) -> dict:
+def _run_inference(file_path: str, file_type: str, metadata: dict | None = None) -> dict:
     """
-    Dispatch inference to the AI module.
-    Falls back to demo mode if the model is unavailable.
+    Analyze the media with the Groq vision LLM (see app.ai.groq_analyzer).
+
+    There is no fallback: if Groq is not configured or the call fails,
+    GroqAnalysisError propagates and the upload fails with that message.
     """
-    demo_mode = current_app.config.get('DEMO_MODE', True)
+    from app.ai.groq_analyzer import analyze_image, analyze_video
 
-    if not demo_mode:
-        try:
-            from app.ai.image_predictor import predict_image
-            from app.ai.video_predictor import predict_video
-            from app.ai.risk_classifier import classify_risk
-
-            if file_type == 'image':
-                raw = predict_image(file_path)
-            else:
-                raw = predict_video(file_path)
-
-            raw['risk_level'] = classify_risk(raw['confidence'])
-            raw['is_demo'] = False
-            return raw
-        except Exception as e:
-            logger.warning(f'AI inference failed ({e}), falling back to demo.')
-
-    return _demo_inference(file_type)
-
-
-def _demo_inference(file_type: str) -> dict:
-    """Generate clearly labeled demo inference results."""
-    import random
-
-    r = random.random()
-    if r < 0.4:
-        result, confidence = 'deepfake', round(85 + random.random() * 14, 1)
-    elif r < 0.65:
-        result, confidence = 'suspicious', round(45 + random.random() * 25, 1)
-    else:
-        result, confidence = 'real', round(5 + random.random() * 25, 1)
-
-    from app.ai.risk_classifier import classify_risk
-    risk = classify_risk(confidence)
-
-    indicators = []
-    if result == 'deepfake':
-        indicators = [
-            {'name': 'Facial boundary inconsistency', 'severity': 'high', 'score': round(confidence / 100 + random.uniform(-0.05, 0.05), 2)},
-            {'name': 'Texture anomaly', 'severity': 'high', 'score': round(confidence / 100 + random.uniform(-0.08, 0.05), 2)},
-            {'name': 'Lighting inconsistency', 'severity': 'medium', 'score': round(confidence / 100 - 0.1 + random.uniform(-0.05, 0.05), 2)},
-        ]
-    elif result == 'suspicious':
-        indicators = [
-            {'name': 'Temporal inconsistency', 'severity': 'medium', 'score': round(confidence / 100 + random.uniform(-0.05, 0.05), 2)},
-            {'name': 'Compression artifact', 'severity': 'medium', 'score': round(confidence / 100 + random.uniform(-0.08, 0.05), 2)},
-        ]
-
-    frames = []
-    if file_type == 'video' and result in ('deepfake', 'suspicious'):
-        for i in range(6):
-            prob = round(confidence + random.uniform(-5, 5), 1)
-            frames.append({
-                'frameNum': i * 24 + 1,
-                'timestamp': f'0:{i * 8:02d}',
-                'probability': max(0, min(100, prob)),
-                'risk': classify_risk(prob),
-            })
-
-    return {
-        'result': result,
-        'confidence': confidence,
-        'risk_level': risk,
-        'model_name': 'DEMO ANALYSIS — EfficientNet-B4 (simulated)',
-        'is_demo': True,
-        'indicators': indicators,
-        'frames': frames,
-    }
+    if file_type == 'image':
+        return analyze_image(file_path, metadata)
+    return analyze_video(file_path, metadata)

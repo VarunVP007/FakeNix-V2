@@ -1,41 +1,45 @@
 import { useEffect, useState } from 'react'
 import { getRiskColor } from '../../utils/riskCalculator'
+import { toNumber } from '../../utils/normalize'
 
-export default function RiskScore({ score, result, risk, animated = true }) {
-  const [displayScore, setDisplayScore] = useState(animated ? 0 : score)
+export default function RiskScore({ score, risk, animated = true }) {
+  const target = toNumber(score)
+  const [displayScore, setDisplayScore] = useState(animated ? 0 : target ?? 0)
 
   useEffect(() => {
-    if (!animated) return
-    let start = 0
-    const end = score
-    const duration = 1200
-    const step = end / (duration / 16)
+    if (target === null) return
+    if (!animated) {
+      setDisplayScore(target)
+      return
+    }
+    let current = 0
+    const step = Math.max(target / (1200 / 16), 0.1)
     const timer = setInterval(() => {
-      start += step
-      if (start >= end) {
-        setDisplayScore(end)
+      current += step
+      if (current >= target) {
+        setDisplayScore(target)
         clearInterval(timer)
       } else {
-        setDisplayScore(Math.round(start * 10) / 10)
+        setDisplayScore(Math.round(current * 10) / 10)
       }
     }, 16)
     return () => clearInterval(timer)
-  }, [score, animated])
+  }, [target, animated])
 
-  const color = getRiskColor(risk)
+  const color = target === null ? 'var(--text-muted)' : getRiskColor(risk)
 
   return (
     <div style={{ textAlign: 'center' }}>
       <div style={{
-        fontSize: 72,
+        fontSize: target === null ? 32 : 72,
         fontWeight: 900,
         color,
         lineHeight: 1,
-        letterSpacing: -3,
+        letterSpacing: target === null ? 0 : -3,
         fontFamily: 'var(--font-mono)',
         transition: 'color 0.3s'
       }}>
-        {displayScore.toFixed(1)}%
+        {target === null ? 'Not available' : `${displayScore.toFixed(1)}%`}
       </div>
       <div style={{
         fontSize: 13,

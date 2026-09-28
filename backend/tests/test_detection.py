@@ -5,23 +5,25 @@ import io
 import pytest
 
 
+def _make_image(fmt: str) -> bytes:
+    """Return a small but real, decodable image (the Groq model analyzes the pixels)."""
+    from PIL import Image, ImageDraw
+
+    img = Image.new('RGB', (256, 256), (70, 110, 160))
+    draw = ImageDraw.Draw(img)
+    draw.ellipse((80, 60, 176, 180), fill=(225, 190, 160))
+    draw.rectangle((0, 210, 256, 256), fill=(40, 40, 40))
+    buf = io.BytesIO()
+    img.save(buf, format=fmt)
+    return buf.getvalue()
+
+
 def _make_fake_png() -> bytes:
-    """Return minimal valid PNG bytes (1×1 pixel)."""
-    return (
-        b'\x89PNG\r\n\x1a\n'  # PNG magic
-        b'\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01'
-        b'\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx'
-        b'\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00'
-        b'\x00\x00IEND\xaeB`\x82'
-    )
+    return _make_image('PNG')
 
 
 def _make_fake_jpeg() -> bytes:
-    """Return minimal valid JPEG bytes."""
-    return (
-        b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01'
-        b'\x00\x01\x00\x00\xff\xd9'
-    )
+    return _make_image('JPEG')
 
 
 class TestImageDetection:
@@ -44,7 +46,7 @@ class TestImageDetection:
         assert resp.status_code == 400
 
     def test_image_upload_valid_png(self, client, auth_headers):
-        """Valid PNG upload in demo mode should return 200 with result."""
+        """Valid PNG upload is analyzed by the Groq LLM and returns a real result."""
         png_bytes = _make_fake_png()
         data = {
             'file': (io.BytesIO(png_bytes), 'test_image.png')
@@ -64,6 +66,10 @@ class TestImageDetection:
         assert 'confidence' in d
         assert 'evidenceId' in d
         assert 'sha256' in d
+        # Produced by the LLM, never simulated
+        assert d['isDemo'] is False
+        assert '(Groq)' in d['model']
+        assert 0 <= d['deepfakeProbability'] <= 100
 
     def test_image_upload_valid_jpeg(self, client, auth_headers):
         """Valid JPEG upload should succeed."""

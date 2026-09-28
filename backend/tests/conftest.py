@@ -6,7 +6,17 @@ import sys
 import os
 
 # Ensure backend/ is on path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, BACKEND_DIR)
+
+# Image/video detection always calls the Groq LLM (no offline mode), so the tests
+# need the real Groq settings. Only GROQ_* values are taken from backend/.env;
+# everything else stays on the isolated testing config. Must run before app import.
+from dotenv import dotenv_values
+
+for _key, _value in dotenv_values(os.path.join(BACKEND_DIR, '.env')).items():
+    if _key.startswith('GROQ_') and _value and not os.environ.get(_key):
+        os.environ[_key] = _value
 
 from app import create_app
 from app.extensions import db as _db

@@ -22,6 +22,7 @@ from app.services.image_service import validate_image_file, validate_video_file,
 from app.utils.response import success_response, error_response
 from app.utils.validators import validate_url
 from app.utils.decorators import demo_mode_optional
+from app.ai.groq_analyzer import GroqAnalysisError
 
 detection_bp = Blueprint('detection', __name__)
 
@@ -55,6 +56,9 @@ def detect_image():
             user_id=g.current_user_id,
         )
         return success_response(data=result, message='Image analysis complete.')
+    except GroqAnalysisError as e:
+        current_app.logger.error(f'Image AI analysis error: {e}')
+        return error_response(str(e), 502)
     except Exception as e:
         current_app.logger.exception(f'Image detection error: {e}')
         return error_response('Image analysis failed.', 500)
@@ -86,6 +90,9 @@ def detect_video():
             user_id=g.current_user_id,
         )
         return success_response(data=result, message='Video analysis complete.')
+    except GroqAnalysisError as e:
+        current_app.logger.error(f'Video AI analysis error: {e}')
+        return error_response(str(e), 502)
     except Exception as e:
         current_app.logger.exception(f'Video detection error: {e}')
         return error_response('Video analysis failed.', 500)

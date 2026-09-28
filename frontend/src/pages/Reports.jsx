@@ -1,152 +1,135 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import {
-  FileText, Download, Printer, Shield, CheckCircle, Clock,
-  Plus, AlertCircle, FileCheck, Share2, Sparkles
-} from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Link } from 'react-router-dom'
+import { FileText, Download, CheckCircle, Clock, Plus, FileSearch, ArrowUpRight } from 'lucide-react'
 import { detectionService } from '../services/detectionService'
-import { mockReports } from '../data/mockReports'
-import { ResultBadge, RiskBadge } from '../components/common/Badge'
-import { formatDateTime } from '../utils/formatters'
+import { getErrorMessage } from '../services/api'
+import { ResultBadge } from '../components/common/Badge'
+import { LoadingState, ErrorState, EmptyView } from '../components/common/StateViews'
+import Modal from '../components/common/Modal'
+import { useAsync } from '../hooks/useAsync'
+import { formatDateTime, formatDate, formatConfidence, getResultLabel } from '../utils/formatters'
 import { useToast } from '../App'
 
+async function loadReportsPage() {
+  const [reports, detections] = await Promise.allSettled([
+    detectionService.getReports(),
+    detectionService.getDetectionHistory()
+  ])
+  if (reports.status === 'rejected') throw reports.reason
+  return {
+    reports: reports.value,
+    detections: detections.status === 'fulfilled' ? detections.value : []
+  }
+}
+
 export default function Reports() {
-  const navigate = useNavigate()
   const { addToast } = useToast()
-  const [reports, setReports] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { data, setData, loading, error, reload } = useAsync(loadReportsPage, [])
+  const [downloadingId, setDownloadingId] = useState(null)
+  const [showGenerate, setShowGenerate] = useState(false)
+  const [selectedDetection, setSelectedDetection] = useState('')
   const [generating, setGenerating] = useState(false)
-  const [selectedReport, setSelectedReport] = useState(null)
 
-  useEffect(() => {
-    detectionService.getReports().then((data) => {
-      setReports(data || mockReports)
-      setLoading(false)
-    })
-  }, [])
+  const reports = data?.reports || []
+  const detections = data?.detections || []
 
-  const handleGenerateNew = async () => {
-    setGenerating(true)
-    addToast('Compiling forensic report and computing cryptographic signatures...', 'info', 'Generating Report')
+  const detectionById = useMemo(() => {
+    const map = new Map()
+    detections.forEach((d) => d.id && map.set(d.id, d))
+    return map
+  }, [detections])
+
+  const reportedIds = useMemo(() => new Set(reports.map((r) => r.detectionId).filter(Boolean)), [reports])
+  const unreported = detections.filter((d) => d.id && !reportedIds.has(d.id))
+  const readyCount = reports.filter((r) => r.status === 'ready').length
+
+  const handleDownload = async (report) => {
+    if (!report.reportId) return
+    setDownloadingId(report.reportId)
     try {
-      const newRpt = await detectionService.generateReport('det_001')
-      const completeReport = {
-        id: 'rpt_' + Date.now(),
-        reportId: newRpt.reportId || newRpt.report_uid || 'FX-RPT-2026-001',
-        evidenceId: newRpt.evidenceId || 'FX-2026-00142',
-        detectionId: newRpt.detectionId || 'det_001',
-        reportType: 'Forensic Deepfake Dossier',
-        detection: 'Deepfake',
-        confidence: 94.2,
-        risk: 'high',
-        generatedDate: new Date().toISOString(),
-        generatedBy: 'Forensic Investigator',
-        status: 'ready',
-        fileName: 'investigation_sample.mp4'
-      }
-      setReports((prev) => [completeReport, ...prev])
-      addToast('Forensic Dossier compiled and signed successfully.', 'success', 'Report Ready')
+      await detectionService.downloadReport(report.reportId)
+      addToast(`${report.reportId}.pdf downloaded.`, 'success', 'Download Complete')
     } catch (err) {
-      console.error('Error generating new report:', err)
-      addToast('Failed to generate report.', 'error', 'Generation Error')
+      addToast(getErrorMessage(err, 'Unable to download this report.'), 'error', 'Download Failed')
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
+  const openGenerate = () => {
+    setSelectedDetection(unreported[0]?.id || detections[0]?.id || '')
+    setShowGenerate(true)
+  }
+
+  const handleGenerate = async () => {
+    if (!selectedDetection) return
+    setGenerating(true)
+    try {
+      const report = await detectionService.generateReport(selectedDetection)
+      setData((prev) => ({
+        ...prev,
+        reports: [report, ...prev.reports.filter((r) => r.reportId !== report.reportId)]
+      }))
+      addToast(`Report ${report.reportId} is ready to download.`, 'success', 'Report Generated')
+      setShowGenerate(false)
+    } catch (err) {
+      addToast(getErrorMessage(err, 'Unable to generate the report.'), 'error', 'Generation Failed')
     } finally {
       setGenerating(false)
     }
   }
 
-  const handleDownload = async (report) => {
-    const targetId = report?.reportId || report?.id || 'FX-RPT-2026-001'
-    addToast(`Downloading ${targetId} PDF forensic document...`, 'info', 'Downloading')
-    try {
-      await detectionService.downloadReport(targetId)
-      addToast(`Report ${targetId} downloaded successfully.`, 'success', 'Download Complete')
-    } catch (err) {
-      console.error('Download error:', err)
-      addToast('Unable to download report. Please try again.', 'error', 'Download Failed')
-    }
-  }
-
-
   return (
     <div className="animate-slideUp" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* Top Banner */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+      <div className="page-toolbar">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <h1 style={{ fontSize: '1.6rem', fontWeight: 800, margin: 0 }}>Forensic Reports & Certificates</h1>
-            <span className="badge badge-purple">Official Documentation</span>
-          </div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
-            Generate, sign, and export court-admissible forensic dossiers, certificates of authenticity, and evidence briefs.
+          <h1 className="page-title">Forensic Reports</h1>
+          <p className="page-subtitle" style={{ margin: 0 }}>
+            Generate and download PDF forensic reports for your completed analyses.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button
-            className="btn btn-primary btn-sm"
-            disabled={generating}
-            onClick={handleGenerateNew}
-          >
-            {generating ? <div className="loader-spinner sm" /> : <Plus size={15} />}
-            <span>Generate New Report</span>
-          </button>
-        </div>
+        <button className="btn btn-primary btn-sm" disabled={loading || !!error || detections.length === 0} onClick={openGenerate}>
+          <Plus size={15} /> Generate Report
+        </button>
       </div>
 
-      {/* Reports Overview Cards */}
-      <div className="grid grid-3">
-        <div className="card" style={{ padding: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div className="grid-3">
+        {[
+          { label: 'Reports', value: reports.length, icon: FileText, color: 'var(--accent-purple)', bg: '#f5f3ff' },
+          { label: 'Ready to Download', value: readyCount, icon: CheckCircle, color: 'var(--green)', bg: 'var(--green-bg)' },
+          { label: 'Analyses Without Report', value: unreported.length, icon: FileSearch, color: 'var(--accent-cyan)', bg: '#ecfeff' }
+        ].map(({ label, value, icon: Icon, color, bg }) => (
+          <div key={label} className="card" style={{ padding: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Available Reports</div>
-              <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: 4 }}>{reports.length}</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{label}</div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: 4 }}>{loading || error ? '—' : value}</div>
             </div>
-            <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(139,92,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-purple)' }}>
-              <FileText size={20} />
+            <div style={{ width: 40, height: 40, borderRadius: 8, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color }}>
+              <Icon size={20} />
             </div>
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 8 }}>Ready for law enforcement submission</div>
-        </div>
-
-        <div className="card" style={{ padding: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Tamper-Evident Signatures</div>
-              <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: 4, color: 'var(--green)' }}>100%</div>
-            </div>
-            <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(34,197,94,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--green)' }}>
-              <FileCheck size={20} />
-            </div>
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 8 }}>Cryptographically signed and verified</div>
-        </div>
-
-        <div className="card" style={{ padding: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Cybercrime Packets</div>
-              <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: 4, color: 'var(--accent-cyan)' }}>Ready</div>
-            </div>
-            <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(14,165,233,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-cyan)' }}>
-              <Shield size={20} />
-            </div>
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 8 }}>Formatted for official portal export</div>
-        </div>
+        ))}
       </div>
 
-      {/* Reports Table / List */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div className="card-title">Generated Forensic Dossiers</div>
-          <button className="btn btn-ghost btn-xs" onClick={() => navigate('/cybercrime/report')}>
-            File Incident Report &rarr;
-          </button>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div className="card-title">Generated Reports</div>
+          <Link to="/cybercrime/report" className="btn btn-ghost btn-xs">Prepare Incident Report &rarr;</Link>
         </div>
 
         {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
-            <div className="loader-spinner" />
-          </div>
+          <LoadingState text="Loading reports..." />
+        ) : error ? (
+          <ErrorState message={error} onRetry={reload} />
+        ) : reports.length === 0 ? (
+          <EmptyView
+            icon={FileText}
+            title="No reports yet"
+            description={detections.length > 0 ? 'Generate a PDF report for one of your analyses.' : 'Analyze a file first, then generate a report for it.'}
+            action={detections.length > 0
+              ? <button className="btn btn-primary btn-sm" onClick={openGenerate}>Generate Report</button>
+              : <Link to="/detect" className="btn btn-primary btn-sm">Analyze a file</Link>}
+          />
         ) : (
           <div className="table-responsive">
             <table className="table" style={{ margin: 0 }}>
@@ -156,79 +139,96 @@ export default function Reports() {
                   <th>Media File</th>
                   <th>Verdict</th>
                   <th>Confidence</th>
-                  <th>Generated Date</th>
+                  <th>Generated</th>
                   <th>Status</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {reports.map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      <div>
-                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
-                          {r.reportId}
+                {reports.map((r) => {
+                  const linked = r.detectionId ? detectionById.get(r.detectionId) : null
+                  return (
+                    <tr key={r.id || r.reportId}>
+                      <td>
+                        <div style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
+                          {r.reportId || 'No report ID'}
+                          {linked?.isDemo && <span className="badge badge-purple" style={{ marginLeft: 6, fontSize: 10 }}>DEMO</span>}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          {r.reportType}
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{r.reportType || 'Forensic report'}</div>
+                      </td>
+                      <td>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', wordBreak: 'break-word' }}>{r.fileName || 'Not available'}</div>
+                        {r.evidenceId && <div style={{ fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{r.evidenceId}</div>}
+                      </td>
+                      <td><ResultBadge result={r.result} /></td>
+                      <td><span style={{ fontWeight: 700, fontSize: '0.9rem', whiteSpace: 'nowrap' }}>{formatConfidence(r.confidence)}</span></td>
+                      <td><span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{formatDateTime(r.generatedDate)}</span></td>
+                      <td>
+                        {r.status === 'ready' ? (
+                          <span className="badge badge-green" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><CheckCircle size={10} /> Ready</span>
+                        ) : (
+                          <span className="badge badge-orange" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Clock size={10} /> {r.status || 'Unknown'}</span>
+                        )}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handleDownload(r)}
+                            disabled={!r.reportId || downloadingId === r.reportId}
+                            title="Download PDF"
+                          >
+                            {downloadingId === r.reportId ? <span className="loader-spinner sm" /> : <Download size={14} />} PDF
+                          </button>
+                          {linked && (
+                            <Link to={`/result/${r.detectionId}`} className="btn btn-ghost btn-sm" title="Open analysis result" aria-label="Open analysis result">
+                              <ArrowUpRight size={14} />
+                            </Link>
+                          )}
                         </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{r.fileName}</div>
-                      <div style={{ fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{r.evidenceId}</div>
-                    </td>
-                    <td>
-                      <span className={`badge ${r.detection === 'Deepfake' ? 'badge-red' : r.detection === 'Real' ? 'badge-green' : 'badge-orange'}`}>
-                        {r.detection}
-                      </span>
-                    </td>
-                    <td>
-                      <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{r.confidence}%</span>
-                    </td>
-                    <td>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        {formatDateTime(r.generatedDate)}
-                      </span>
-                    </td>
-                    <td>
-                      {r.status === 'ready' ? (
-                        <span className="badge badge-green" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          <CheckCircle size={10} /> Ready
-                        </span>
-                      ) : (
-                        <span className="badge badge-orange" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          <Clock size={10} /> Generating
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => handleDownload(r)}
-                          title="Download PDF Dossier"
-                        >
-                          <Download size={14} /> Download
-                        </button>
-                        <button
-                          className="btn btn-ghost btn-sm"
-                          onClick={() => {
-                            window.print()
-                          }}
-                          title="Print Document"
-                        >
-                          <Printer size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      <Modal
+        isOpen={showGenerate}
+        onClose={generating ? undefined : () => setShowGenerate(false)}
+        title="Generate Forensic Report"
+        maxWidth={520}
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setShowGenerate(false)} disabled={generating}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleGenerate} disabled={generating || !selectedDetection}>
+              {generating && <span className="loader-spinner sm" />} Generate PDF
+            </button>
+          </>
+        }
+      >
+        <div className="form-group">
+          <label className="form-label" htmlFor="report-detection">Analysis</label>
+          <select
+            id="report-detection"
+            className="form-control"
+            value={selectedDetection}
+            onChange={(e) => setSelectedDetection(e.target.value)}
+          >
+            {detections.map((d) => (
+              <option key={d.id} value={d.id}>
+                {(d.fileName || d.id)} — {getResultLabel(d.result)} — {formatDate(d.timestamp)}{reportedIds.has(d.id) ? ' (has report)' : ''}{d.isDemo ? ' [demo]' : ''}
+              </option>
+            ))}
+          </select>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            If a report already exists for the selected analysis, the existing report is returned.
+          </span>
+        </div>
+      </Modal>
     </div>
   )
 }

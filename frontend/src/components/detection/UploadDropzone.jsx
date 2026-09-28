@@ -14,6 +14,8 @@ export default function UploadDropzone({ accept, acceptLabel, onFile, file }) {
 
   const handleChange = (e) => {
     const f = e.target.files[0]
+    // Reset so choosing the same file again still fires onChange.
+    e.target.value = ''
     if (f) onFile(f)
   }
 

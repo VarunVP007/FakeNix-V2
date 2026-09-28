@@ -1,15 +1,18 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  ScanSearch, Image, Video,
-  FileText, Shield, AlertTriangle,
-  TrendingUp, TrendingDown
-} from 'lucide-react'
+import { ScanSearch, Image, Video, CheckCircle, Shield, AlertTriangle, Inbox } from 'lucide-react'
 import { useAppAuth } from '../App'
 import StatCard from '../components/dashboard/StatCard'
 import ActivityTable from '../components/dashboard/ActivityTable'
 import { DetectionTrendChart, DistributionPieChart, MediaTypeChart } from '../components/dashboard/DetectionChart'
 import ImpactCard from '../components/dashboard/ImpactCard'
-import { mockDetections, recentAlerts } from '../data/mockDetections'
+import { LoadingState, ErrorState, EmptyView } from '../components/common/StateViews'
+import { detectionService } from '../services/detectionService'
+import { useAsync } from '../hooks/useAsync'
+import { parseDate, formatTimeAgo, formatConfidence } from '../utils/formatters'
+
+const TREND_DAYS = 11
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
 const quickActions = [
   { to: '/detect/image', icon: Image, label: 'Detect Image', color: '#2563eb', bg: '#eff6ff' },
@@ -18,62 +21,65 @@ const quickActions = [
   { to: '/cybercrime/report', icon: AlertTriangle, label: 'Report Cybercrime', color: '#dc2626', bg: '#fef2f2' }
 ]
 
+// Reports are not loaded here: the backend's GET /reports seeds sample records
+// for users who have none, so it is only called from the Reports page.
+async function loadDashboard() {
+  return { detections: await detectionService.getDetectionHistory() }
+}
+
 export default function Dashboard() {
   const { user } = useAppAuth()
   const firstName = user?.name?.split(' ')[0] || 'Analyst'
+  const { data, loading, error, reload } = useAsync(loadDashboard, [])
+
+  const stats = useMemo(() => {
+    const detections = data?.detections || []
+    const weekAgo = Date.now() - WEEK_MS
+    const count = (fn) => detections.filter(fn).length
+    const inLastWeek = (d) => (parseDate(d.timestamp)?.getTime() || 0) >= weekAgo
+    return {
+      total: detections.length,
+      deepfake: count((d) => d.result === 'deepfake'),
+      suspicious: count((d) => d.result === 'suspicious'),
+      real: count((d) => d.result === 'real'),
+      image: count((d) => d.fileType === 'image'),
+      video: count((d) => d.fileType === 'video'),
+      url: count((d) => d.fileType === 'url'),
+      totalWeek: count(inLastWeek),
+      deepfakeWeek: count((d) => d.result === 'deepfake' && inLastWeek(d)),
+      suspiciousWeek: count((d) => d.result === 'suspicious' && inLastWeek(d)),
+      realWeek: count((d) => d.result === 'real' && inLastWeek(d)),
+      demo: count((d) => d.isDemo),
+      alerts: detections.filter((d) => d.result === 'deepfake' || d.result === 'suspicious').slice(0, 4)
+    }
+  }, [data])
 
   return (
     <div className="animate-slideUp">
-      {/* Header */}
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <h1 className="page-title">Welcome back, {firstName} 👋</h1>
-          <p className="page-subtitle">Let's make the internet a safer place.</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="demo-badge">🔬 DEMO MODE</span>
-        </div>
+      <div className="page-header">
+        <h1 className="page-title">Welcome back, {firstName} 👋</h1>
+        <p className="page-subtitle">Let's make the internet a safer place.</p>
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid-4" style={{ marginBottom: 24 }}>
-        <StatCard
-          label="Total Files Analyzed"
-          value="142"
-          change={12}
-          changeLabel="this week"
-          icon={ScanSearch}
-          color="#2563eb"
-          bgColor="#eff6ff"
-        />
-        <StatCard
-          label="Deepfakes Detected"
-          value="37"
-          change={8}
-          changeLabel="this week"
-          icon={AlertTriangle}
-          color="#ef4444"
-          bgColor="#fef2f2"
-        />
-        <StatCard
-          label="Suspicious Media"
-          value="18"
-          change={-3}
-          changeLabel="this week"
-          icon={Shield}
-          color="#f97316"
-          bgColor="#fff7ed"
-        />
-        <StatCard
-          label="Reports Generated"
-          value="24"
-          change={15}
-          changeLabel="this month"
-          icon={FileText}
-          color="#16a34a"
-          bgColor="#f0fdf4"
-        />
-      </div>
+      {loading && !data ? (
+        <div className="card" style={{ marginBottom: 24 }}><LoadingState text="Loading your detection statistics..." /></div>
+      ) : error ? (
+        <div className="card" style={{ marginBottom: 24 }}><ErrorState message={error} onRetry={reload} /></div>
+      ) : (
+        <>
+          {stats.demo > 0 && (
+            <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 12 }}>
+              {stats.demo} of {stats.total} detections were produced in backend demo mode (simulated results).
+            </div>
+          )}
+          <div className="grid-4" style={{ marginBottom: 24 }}>
+            <StatCard label="Total Files Analyzed" value={stats.total} hint={`${stats.totalWeek} in the last 7 days`} icon={ScanSearch} color="#2563eb" bgColor="#eff6ff" />
+            <StatCard label="Deepfakes Detected" value={stats.deepfake} hint={`${stats.deepfakeWeek} in the last 7 days`} icon={AlertTriangle} color="#ef4444" bgColor="#fef2f2" />
+            <StatCard label="Suspicious Media" value={stats.suspicious} hint={`${stats.suspiciousWeek} in the last 7 days`} icon={Shield} color="#f97316" bgColor="#fff7ed" />
+            <StatCard label="Authentic Media" value={stats.real} hint={`${stats.realWeek} in the last 7 days`} icon={CheckCircle} color="#16a34a" bgColor="#f0fdf4" />
+          </div>
+        </>
+      )}
 
       {/* Quick Actions */}
       <div className="card" style={{ marginBottom: 24 }}>
@@ -97,30 +103,29 @@ export default function Dashboard() {
 
       {/* Charts Row */}
       <div className="grid-3" style={{ marginBottom: 24 }}>
-        <div className="card" style={{ gridColumn: 'span 2' }}>
+        <div className="card span-2">
           <div className="card-header">
             <div>
               <div className="card-title">Detection Trend</div>
-              <div className="card-subtitle">Last 11 days</div>
+              <div className="card-subtitle">Last {TREND_DAYS} days</div>
             </div>
           </div>
-          <DetectionTrendChart />
+          <DetectionTrendChart days={TREND_DAYS} />
         </div>
         <div className="card">
           <div className="card-header">
             <div>
               <div className="card-title">Distribution</div>
-              <div className="card-subtitle">Real vs Deepfake</div>
+              <div className="card-subtitle">All-time verdicts</div>
             </div>
           </div>
-          <DistributionPieChart real={87} deepfake={37} suspicious={18} />
+          {data ? <DistributionPieChart real={stats.real} deepfake={stats.deepfake} suspicious={stats.suspicious} /> : error ? <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Unavailable.</p> : <LoadingState />}
         </div>
       </div>
 
-      {/* Activity + Alerts + Impact */}
+      {/* Activity + Alerts + Media Types */}
       <div className="grid-3" style={{ marginBottom: 24 }}>
-        {/* Recent Activity */}
-        <div className="card" style={{ gridColumn: 'span 2' }}>
+        <div className="card span-2">
           <div className="card-header">
             <div>
               <div className="card-title">Recent Activity</div>
@@ -128,31 +133,42 @@ export default function Dashboard() {
             </div>
             <Link to="/history" className="btn btn-secondary btn-sm">View All</Link>
           </div>
-          <ActivityTable detections={mockDetections} limit={5} />
+          {loading && !data ? (
+            <LoadingState />
+          ) : error ? (
+            <ErrorState message={error} onRetry={reload} />
+          ) : stats.total === 0 ? (
+            <EmptyView
+              icon={Inbox}
+              title="No detections yet"
+              description="Analyze an image or video to see it here."
+              action={<Link to="/detect" className="btn btn-primary btn-sm">Start an analysis</Link>}
+            />
+          ) : (
+            <ActivityTable detections={data.detections} limit={5} />
+          )}
         </div>
 
-        {/* Alerts + Media Type */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
           <div className="card">
             <div className="card-header">
               <div className="card-title">Recent Alerts</div>
+              <Link to="/notifications" style={{ fontSize: 12, color: 'var(--brand-primary)', fontWeight: 600 }}>View all</Link>
             </div>
+            {data && stats.alerts.length === 0 && (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>No deepfake or suspicious detections.</p>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {recentAlerts.map((alert) => (
-                <div key={alert.id} className={`alert-item ${!alert.read ? 'unread' : ''}`}>
-                  <div
-                    className="alert-dot"
-                    style={{
-                      background: alert.type === 'deepfake' ? 'var(--red)'
-                        : alert.type === 'report' ? 'var(--brand-primary)'
-                        : 'var(--green)'
-                    }}
-                  />
+              {stats.alerts.map((d) => (
+                <Link key={d.id} to={`/result/${d.id}`} className="alert-item" style={{ color: 'inherit' }}>
+                  <div className="alert-dot" style={{ background: d.result === 'deepfake' ? 'var(--red)' : 'var(--orange)' }} />
                   <div className="alert-content">
-                    <div className="alert-message">{alert.message}</div>
-                    <div className="alert-time">{alert.time}</div>
+                    <div className="alert-message">
+                      {d.result === 'deepfake' ? 'Deepfake' : 'Suspicious media'}: {d.fileName || 'Unnamed file'} ({formatConfidence(d.deepfakeProbability ?? d.confidence)})
+                    </div>
+                    <div className="alert-time">{formatTimeAgo(d.timestamp)}</div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </div>
@@ -161,13 +177,18 @@ export default function Dashboard() {
             <div className="card-header">
               <div className="card-title">Media Types</div>
             </div>
-            <MediaTypeChart />
+            {data ? <MediaTypeChart image={stats.image} video={stats.video} url={stats.url} /> : error ? <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Unavailable.</p> : <LoadingState />}
           </div>
         </div>
       </div>
 
-      {/* Impact Card */}
-      <ImpactCard user={user} />
+      {data && (
+        <ImpactCard
+          filesAnalyzed={stats.total}
+          authenticVerified={stats.real}
+          threatsIdentified={stats.deepfake + stats.suspicious}
+        />
+      )}
     </div>
   )
 }

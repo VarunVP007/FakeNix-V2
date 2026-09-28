@@ -52,6 +52,8 @@ class Detection(db.Model):
         evidence_id = evidence_list[0].evidence_uid if evidence_list else None
         sha256 = evidence_list[0].sha256_hash if evidence_list else None
 
+        metadata = json.loads(self.metadata_json) if self.metadata_json else {}
+
         return {
             'id': self.detection_uid,
             'evidenceId': evidence_id,
@@ -71,7 +73,8 @@ class Detection(db.Model):
             'sha256': sha256,
             'indicators': json.loads(self.indicators_json) if self.indicators_json else [],
             'frames': json.loads(self.frames_json) if self.frames_json else [],
-            'metadata': json.loads(self.metadata_json) if self.metadata_json else {},
+            'metadata': {k: v for k, v in metadata.items() if k != 'aiExplanation'},
+            'explanation': metadata.get('aiExplanation'),
             'timestamp': self.created_at.isoformat() if self.created_at else None,
             'status': self.status,
         }

@@ -94,16 +94,16 @@ export default function Landing() {
             </div>
             <div className="hero-stats">
               <div className="hero-stat-item">
-                <span className="hero-stat-value">99.2%</span>
-                <span className="hero-stat-label">Accuracy</span>
+                <span className="hero-stat-value">Image + Video</span>
+                <span className="hero-stat-label">Media Analysis</span>
               </div>
               <div className="hero-stat-item">
-                <span className="hero-stat-value">142+</span>
-                <span className="hero-stat-label">Files Analyzed</span>
+                <span className="hero-stat-value">SHA-256</span>
+                <span className="hero-stat-label">Evidence Hashing</span>
               </div>
               <div className="hero-stat-item">
-                <span className="hero-stat-value">24</span>
-                <span className="hero-stat-label">Reports Generated</span>
+                <span className="hero-stat-value">PDF</span>
+                <span className="hero-stat-label">Forensic Reports</span>
               </div>
             </div>
           </div>
@@ -115,7 +115,7 @@ export default function Landing() {
                 <div className="preview-dot" style={{ background: '#ef4444' }} />
                 <div className="preview-dot" style={{ background: '#f97316' }} />
                 <div className="preview-dot" style={{ background: '#22c55e' }} />
-                <span className="preview-title">FAKENIX AI ENGINE</span>
+                <span className="preview-title">SAMPLE RESULT (ILLUSTRATION)</span>
               </div>
 
               <div className="preview-result-card">
@@ -211,12 +211,12 @@ export default function Landing() {
           </div>
           <div className="impact-cards">
             {[
-              { value: '142+', label: 'Files Analyzed' },
-              { value: '37', label: 'Deepfakes Detected' },
-              { value: '24', label: 'Reports Generated' },
-              { value: '99.2%', label: 'AI Accuracy' },
-              { value: '100%', label: 'Evidence Integrity' },
-              { value: 'Open', label: 'Demo Access' }
+              { value: 'Detect', label: 'Image & video deepfakes' },
+              { value: 'Explain', label: 'Indicators & frame scores' },
+              { value: 'Preserve', label: 'SHA-256 evidence records' },
+              { value: 'Verify', label: 'On-demand integrity checks' },
+              { value: 'Report', label: 'PDF forensic reports' },
+              { value: 'Act', label: 'Incident report preparation' }
             ].map(({ value, label }) => (
               <div className="impact-card" key={label}>
                 <div className="impact-card-value">{value}</div>
@@ -239,9 +239,6 @@ export default function Landing() {
             </div>
           </div>
           <div className="landing-footer-links">
-            <a href="#">Privacy</a>
-            <a href="#">Terms</a>
-            <a href="#">Contact</a>
             <Link to="/resources">Resources</Link>
             <Link to="/awareness">Awareness</Link>
           </div>

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { User, Mail, Lock, Eye, EyeOff, CheckCircle, Cpu } from 'lucide-react'
 import { useAppAuth, useToast } from '../App'
 import { authService } from '../services/authService'
+import { getErrorMessage } from '../services/api'
 import { validateEmail, validatePassword, getPasswordStrength } from '../utils/validators'
 
 export default function Register() {
@@ -27,7 +28,7 @@ export default function Register() {
     if (!form.password) errs.password = 'Password is required'
     else if (!validatePassword(form.password)) errs.password = 'Password must be at least 6 characters'
     if (form.password !== form.confirm) errs.confirm = 'Passwords do not match'
-    if (!agreed) errs.terms = 'You must agree to the terms'
+    if (!agreed) errs.terms = 'Please confirm to continue'
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -37,13 +38,14 @@ export default function Register() {
     if (!validate()) return
     setLoading(true)
     try {
-      const result = await authService.register(form.name, form.email, form.password)
+      const result = await authService.register(form.name.trim(), form.email.trim(), form.password)
       login(result.user)
       addToast('Account created successfully! Welcome to FAKENIX.', 'success', 'Account Created')
       navigate('/dashboard')
     } catch (err) {
-      addToast(err.message || 'Registration failed', 'error', 'Error')
-      setErrors({ general: err.message })
+      const message = getErrorMessage(err, 'Registration failed. Please try again.')
+      addToast(message, 'error', 'Registration Failed')
+      setErrors({ general: message })
     } finally {
       setLoading(false)
     }
@@ -188,10 +190,7 @@ export default function Register() {
                   onChange={(e) => setAgreed(e.target.checked)}
                   style={{ accentColor: 'var(--brand-primary)', marginTop: 2 }}
                 />
-                I agree to the{' '}
-                <a href="#" style={{ color: 'var(--brand-primary)', fontWeight: 600 }}>Terms of Service</a>
-                {' '}and{' '}
-                <a href="#" style={{ color: 'var(--brand-primary)', fontWeight: 600 }}>Privacy Policy</a>
+                I understand that files I upload for analysis are stored on this server as evidence records.
               </label>
               {errors.terms && <span className="form-error" style={{ marginTop: 4 }}>{errors.terms}</span>}
             </div>

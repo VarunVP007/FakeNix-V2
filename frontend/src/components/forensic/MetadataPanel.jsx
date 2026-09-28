@@ -1,46 +1,41 @@
+import { formatDateTime, formatFileSize } from '../../utils/formatters'
+import { InfoRow } from '../common/StateViews'
+
+const str = (v) => (typeof v === 'string' && v.trim() ? v : typeof v === 'number' && Number.isFinite(v) ? String(v) : null)
+
 export default function MetadataPanel({ metadata }) {
-  if (!metadata) return null
+  const m = metadata && typeof metadata === 'object' ? metadata : {}
 
   const rows = [
-    { label: 'Format', value: metadata.format },
-    { label: 'Codec', value: metadata.codec },
-    { label: 'Bitrate', value: metadata.bitrate },
-    { label: 'Frame Rate', value: metadata.fps ? `${metadata.fps} fps` : null },
-    { label: 'Audio Codec', value: metadata.audioCodec },
-    { label: 'Created', value: metadata.created ? new Date(metadata.created).toLocaleString() : null },
-    { label: 'Modified', value: metadata.modified ? new Date(metadata.modified).toLocaleString() : null },
-    { label: 'GPS Data', value: metadata.gpsData },
-    { label: 'Software Tag', value: metadata.softwareTag },
-    { label: 'EXIF Stripped', value: metadata.exifStripped !== undefined ? (metadata.exifStripped ? 'Yes ⚠️' : 'No') : null }
+    { label: 'Format', value: str(m.format) },
+    { label: 'MIME Type', value: str(m.mimeType) },
+    { label: 'File Size', value: m.fileSizeBytes != null ? formatFileSize(Number(m.fileSizeBytes)) : null },
+    { label: 'Resolution', value: str(m.resolution) || (m.width && m.height ? `${m.width}x${m.height}` : null) },
+    { label: 'Color Mode', value: str(m.mode) },
+    { label: 'Duration', value: str(m.duration) },
+    { label: 'Codec', value: str(m.codec) },
+    { label: 'Bitrate', value: str(m.bitrate) },
+    { label: 'Frame Rate', value: str(m.fps) ? `${m.fps} fps` : null },
+    { label: 'Audio Codec', value: str(m.audioCodec) },
+    { label: 'Created', value: m.created ? formatDateTime(m.created) : null },
+    { label: 'Modified', value: m.modified ? formatDateTime(m.modified) : null },
+    { label: 'GPS Data', value: str(m.gpsData) },
+    { label: 'Software Tag', value: str(m.softwareTag) },
+    { label: 'EXIF Stripped', value: typeof m.exifStripped === 'boolean' ? (m.exifStripped ? 'Yes' : 'No') : null }
   ].filter((r) => r.value)
 
   if (rows.length === 0) {
     return (
       <p style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-        No metadata available for this file.
+        No metadata was extracted for this file.
       </p>
     )
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {rows.map(({ label, value }) => (
-        <div
-          key={label}
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '10px 0',
-            borderBottom: '1px solid var(--border)',
-            fontSize: 13
-          }}
-        >
-          <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{label}</span>
-          <span style={{ fontWeight: 600, color: 'var(--text-primary)', textAlign: 'right', maxWidth: '60%' }}>
-            {value}
-          </span>
-        </div>
+        <InfoRow key={label} label={label} value={value} />
       ))}
     </div>
   )

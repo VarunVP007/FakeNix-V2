@@ -20,8 +20,8 @@ def create_cybercrime_report(data: dict, user_id: int) -> tuple[CybercrimeReport
     Submission is entirely the user's responsibility.
     """
     year = datetime.now(timezone.utc).year
-    count = db.session.query(CybercrimeReport).count() + 1
-    report_uid = f'CC-{year}-{count:03d}'
+    from app.utils.ids import next_sequential_id
+    report_uid = next_sequential_id(CybercrimeReport.report_uid, f'CC-{year}-', 3)
 
     report = CybercrimeReport(
         report_uid=report_uid,

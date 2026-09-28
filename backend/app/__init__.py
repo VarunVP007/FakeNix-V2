@@ -101,6 +101,9 @@ def _configure_logging(app: Flask) -> None:
         datefmt='%Y-%m-%d %H:%M:%S',
     )
     app.logger.setLevel(log_level)
+    # Third-party clients log full request bodies (including base64 media) at DEBUG.
+    for noisy in ('groq', 'httpx', 'httpcore', 'PIL'):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
 def _ensure_storage_dirs(app: Flask) -> None:

@@ -51,7 +51,7 @@ def calculate_md5(file_path: str) -> str:
 def generate_evidence_id(year: int = None) -> str:
     """
     Generate a unique evidence ID in the format: FX-YYYY-NNNNN
-    Uses database sequence to ensure uniqueness.
+    Uses the highest existing number for the year, so IDs stay unique after deletions.
     """
     from app.extensions import db
     from app.models.evidence import Evidence
@@ -59,18 +59,9 @@ def generate_evidence_id(year: int = None) -> str:
     if year is None:
         year = datetime.now(timezone.utc).year
 
-    # Count existing evidence for this year to get next number
-    try:
-        prefix = f'FX-{year}-'
-        count = db.session.query(Evidence).filter(
-            Evidence.evidence_uid.like(f'{prefix}%')
-        ).count()
-        number = count + 1
-        return f'FX-{year}-{number:05d}'
-    except Exception:
-        # Fallback to timestamp-based ID if DB is unavailable
-        import time
-        return f'FX-{year}-{int(time.time()) % 100000:05d}'
+    # Next number after the highest in use (row count would collide after deletions)
+    from app.utils.ids import next_sequential_id
+    return next_sequential_id(Evidence.evidence_uid, f'FX-{year}-', 5)
 
 
 def verify_file_integrity(file_path: str, expected_hash: str) -> dict:

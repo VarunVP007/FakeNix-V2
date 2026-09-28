@@ -1,8 +1,4 @@
-import { TrendingUp, TrendingDown } from 'lucide-react'
-
-export default function StatCard({ label, value, change, changeLabel, icon: Icon, color = '#2563eb', bgColor = '#eff6ff' }) {
-  const isPositive = change > 0
-
+export default function StatCard({ label, value, hint, icon: Icon, color = '#2563eb', bgColor = '#eff6ff' }) {
   return (
     <div className="stat-card" style={{ '--stat-color': color }}>
       <div className="stat-icon" style={{ background: bgColor }}>
@@ -11,11 +7,8 @@ export default function StatCard({ label, value, change, changeLabel, icon: Icon
       <div className="stat-content">
         <div className="stat-value">{value}</div>
         <div className="stat-label">{label}</div>
-        {change !== undefined && (
-          <div className={`stat-change ${isPositive ? 'up' : 'down'}`}>
-            {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-            {Math.abs(change)}% {changeLabel || (isPositive ? 'increase' : 'decrease')}
-          </div>
+        {hint && (
+          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>{hint}</div>
         )}
       </div>
     </div>

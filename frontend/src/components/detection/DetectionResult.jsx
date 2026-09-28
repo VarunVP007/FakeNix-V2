@@ -1,38 +1,49 @@
 import { useEffect, useState } from 'react'
-import { getRiskColor } from '../../utils/riskCalculator'
+import { clampPercent, toNumber } from '../../utils/normalize'
+import { formatConfidence } from '../../utils/formatters'
 
-export default function DetectionResult({ result, confidence, deepfakeProbability, realProbability }) {
-  const [barWidths, setBarWidths] = useState({ deepfake: 0, real: 0 })
+/** Horizontal probability bar. Bar width is clamped; the label shows the actual value. */
+export function ProbabilityBar({ label, value, color }) {
+  const [width, setWidth] = useState(0)
+  const num = toNumber(value)
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setBarWidths({
-        deepfake: deepfakeProbability,
-        real: realProbability
-      })
-    }, 300)
+    const timer = setTimeout(() => setWidth(clampPercent(num)), 300)
     return () => clearTimeout(timer)
-  }, [deepfakeProbability, realProbability])
+  }, [num])
 
-  const items = [
-    { label: 'Deepfake', value: deepfakeProbability, barWidth: barWidths.deepfake, color: 'var(--red)' },
-    { label: 'Real', value: realProbability, barWidth: barWidths.real, color: 'var(--green)' }
-  ]
+  return (
+    <div className="confidence-bar-row">
+      <span className="confidence-bar-label">{label}</span>
+      <div
+        className="confidence-bar-track"
+        role="progressbar"
+        aria-label={`${label} probability`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={num ?? undefined}
+      >
+        <div className="confidence-bar-fill" style={{ width: `${width}%`, background: color }} />
+      </div>
+      <span className="confidence-bar-pct" style={{ color: num === null ? 'var(--text-muted)' : color, fontSize: num === null ? 12 : undefined }}>
+        {num === null ? 'N/A' : formatConfidence(num)}
+      </span>
+    </div>
+  )
+}
+
+export default function DetectionResult({ deepfakeProbability, realProbability }) {
+  const hasAny = toNumber(deepfakeProbability) !== null || toNumber(realProbability) !== null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {items.map(({ label, value, barWidth, color }) => (
-        <div key={label} className="confidence-bar-row">
-          <span className="confidence-bar-label">{label}</span>
-          <div className="confidence-bar-track">
-            <div
-              className="confidence-bar-fill"
-              style={{ width: `${barWidth}%`, background: color }}
-            />
-          </div>
-          <span className="confidence-bar-pct" style={{ color }}>{value?.toFixed(1)}%</span>
-        </div>
-      ))}
+      <ProbabilityBar label="Deepfake" value={deepfakeProbability} color="var(--red)" />
+      <ProbabilityBar label="Real" value={realProbability} color="var(--green)" />
+      {!hasAny && (
+        <p style={{ fontSize: 12.5, color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
+          The analysis did not return probability scores for this file.
+        </p>
+      )}
     </div>
   )
 }

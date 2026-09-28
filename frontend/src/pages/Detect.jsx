@@ -41,16 +41,14 @@ export default function Detect() {
           borderRadius: 'var(--radius-xl)',
           padding: '16px 20px',
           marginBottom: 24,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          fontSize: 13.5
+          fontSize: 13.5,
+          color: 'var(--text-secondary)',
+          lineHeight: 1.5
         }}
       >
-        <span className="demo-badge">DEMO ANALYSIS</span>
-        <span style={{ color: 'var(--text-secondary)' }}>
-          Uploads are simulated in demo mode. No real AI model is invoked. Results are randomly generated for demonstration purposes.
-        </span>
+        Each upload is analyzed by a vision AI model through the FAKENIX backend. The model inspects the
+        media for manipulation artifacts and returns a verdict, a deepfake probability and a written
+        explanation. Treat the result as decision support, not proof.
       </div>
 
       <div className="detect-cards">
@@ -78,9 +76,9 @@ export default function Detect() {
       <div className="card" style={{ marginTop: 24, background: 'linear-gradient(135deg, #f8fafc, #fff)' }}>
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
           {[
-            { title: '🔒 Secure Processing', desc: 'Files are processed in an isolated environment and never stored permanently.' },
-            { title: '🧬 Evidence Hashing', desc: 'SHA-256 cryptographic hashes are generated for every analyzed file.' },
-            { title: '⚡ Fast Analysis', desc: 'Results are typically available within 15–30 seconds per file.' }
+            { title: '🔒 Evidence Storage', desc: 'Uploaded files are stored on the server and recorded in your Evidence Vault.' },
+            { title: '🧬 Evidence Hashing', desc: 'SHA-256 and MD5 hashes are generated for every analyzed file.' },
+            { title: '📄 Forensic Reports', desc: 'A PDF forensic report can be generated for any completed analysis.' }
           ].map(({ title, desc }) => (
             <div key={title} style={{ flex: '1 1 200px' }}>
               <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>{title}</div>

@@ -102,8 +102,8 @@ def generate_report(detection_uid: str, user=None) -> tuple[Report | None, str]:
 
     # Generate report UID
     year = datetime.now(timezone.utc).year
-    count = db.session.query(Report).count() + 1
-    report_uid = f'FX-RPT-{year}-{count:03d}'
+    from app.utils.ids import next_sequential_id
+    report_uid = next_sequential_id(Report.report_uid, f'FX-RPT-{year}-', 3)
 
     report_type = 'Forensic Analysis'
     if (detection.result or '').lower() in ['real', 'authentic']:
@@ -466,7 +466,7 @@ def _generate_pdf(path: str, report_uid: str, detection: Detection | None, evide
         return ''
 
     except ImportError:
-        msg = 'ReportLab is not installed. Run: pip install reportlab'
+        msg = 'ReportLab is not installed. Run: uv sync'
         logger.error(msg)
         return msg
     except Exception as e:

@@ -3,10 +3,9 @@ import {
   LayoutDashboard, ScanSearch, Image, Video,
   History, Shield, FileText, AlertTriangle,
   BookOpen, HelpCircle, Settings, LogOut,
-  ChevronDown, ChevronRight, Cpu
+  Cpu
 } from 'lucide-react'
 import { useAppAuth } from '../../App'
-import { useState } from 'react'
 
 const navSections = [
   {
@@ -69,7 +68,7 @@ export default function Sidebar({ isOpen, onClose }) {
         </div>
         <div className="sidebar-logo-text">
           <span className="sidebar-logo-name">FAKENIX</span>
-          <span className="sidebar-logo-version">v2.0 · DEMO MODE</span>
+          <span className="sidebar-logo-version">v2.0</span>
         </div>
       </div>
 
@@ -101,7 +100,7 @@ export default function Sidebar({ isOpen, onClose }) {
         <div className="sidebar-user">
           <div className="sidebar-avatar">{initials}</div>
           <div className="sidebar-user-info">
-            <div className="sidebar-user-name">{user?.name || 'Demo User'}</div>
+            <div className="sidebar-user-name">{user?.name || 'Signed in'}</div>
             <div className="sidebar-user-role">{user?.role || 'Analyst'}</div>
           </div>
         </div>

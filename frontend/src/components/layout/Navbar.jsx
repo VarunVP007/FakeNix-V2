@@ -1,16 +1,22 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
-import { Menu, Search, Bell, Settings, LogOut, User, ChevronDown } from 'lucide-react'
+import { Menu, Search, Bell, Settings, LogOut, ChevronDown } from 'lucide-react'
 import { useAppAuth } from '../../App'
-import { recentAlerts } from '../../data/mockDetections'
+import { useNotifications } from '../../hooks/useNotifications'
 import { formatTimeAgo } from '../../utils/formatters'
+
+const NOTIF_COLORS = {
+  critical: ['var(--red-bg)', 'var(--red)'],
+  warning: ['var(--orange-bg)', 'var(--orange)'],
+  success: ['var(--green-bg)', 'var(--green)'],
+  info: ['var(--blue-bg)', 'var(--brand-primary)']
+}
 
 const breadcrumbMap = {
   '/dashboard': ['Dashboard'],
   '/detect': ['Detect Content', 'Analyze Media'],
   '/detect/image': ['Detect Content', 'Image Analysis'],
   '/detect/video': ['Detect Content', 'Video Analysis'],
-  '/analysis/processing': ['Detection', 'Processing'],
   '/history': ['Investigation', 'Detection History'],
   '/evidence': ['Investigation', 'Evidence Vault'],
   '/reports': ['Investigation', 'Reports'],
@@ -27,12 +33,26 @@ export default function Navbar({ onMenuToggle }) {
   const navigate = useNavigate()
   const [showNotifications, setShowNotifications] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
-  const [unreadCount] = useState(recentAlerts.filter((a) => !a.read).length)
+  const [search, setSearch] = useState('')
+  const { notifications, unreadCount, reload: reloadNotifications, markRead } = useNotifications()
   const notifRef = useRef(null)
   const userRef = useRef(null)
 
   const crumbs = breadcrumbMap[location.pathname] ||
-    (location.pathname.startsWith('/result') ? ['Investigation', 'Analysis Result'] : ['FAKENIX'])
+    (/^\/result\/[^/]+\/frames$/.test(location.pathname)
+      ? ['Investigation', 'Analysis Result', 'Frames']
+      : location.pathname.startsWith('/result') ? ['Investigation', 'Analysis Result'] : [])
+
+  // Refresh alerts after navigating (e.g. a new analysis just completed).
+  useEffect(() => {
+    reloadNotifications()
+  }, [location.pathname, reloadNotifications])
+
+  const handleSearch = (e) => {
+    e.preventDefault()
+    const q = search.trim()
+    navigate(q ? `/history?q=${encodeURIComponent(q)}` : '/history')
+  }
 
   useEffect(() => {
     const handler = (e) => {
@@ -74,10 +94,15 @@ export default function Navbar({ onMenuToggle }) {
       </div>
 
       {/* Search */}
-      <div className="navbar-search">
+      <form className="navbar-search" onSubmit={handleSearch} role="search">
         <Search size={14} className="navbar-search-icon" />
-        <input placeholder="Search detections..." aria-label="Search" />
-      </div>
+        <input
+          placeholder="Search detections..."
+          aria-label="Search detections"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </form>
 
       {/* Actions */}
       <div className="navbar-actions">
@@ -86,7 +111,7 @@ export default function Navbar({ onMenuToggle }) {
           <button
             className="navbar-icon-btn"
             onClick={() => setShowNotifications((v) => !v)}
-            aria-label="Notifications"
+            aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : 'Notifications'}
           >
             <Bell size={18} />
             {unreadCount > 0 && <span className="navbar-badge" />}
@@ -105,38 +130,31 @@ export default function Navbar({ onMenuToggle }) {
                 </Link>
               </div>
               <div className="notifications-list">
-                {recentAlerts.map((alert) => (
-                  <div
-                    key={alert.id}
-                    className={`notification-item ${!alert.read ? 'unread' : ''}`}
-                  >
-                    <div
-                      className="notification-icon-wrap"
-                      style={{
-                        background: alert.type === 'deepfake'
-                          ? 'var(--red-bg)'
-                          : alert.type === 'report'
-                          ? 'var(--blue-bg)'
-                          : 'var(--green-bg)'
-                      }}
-                    >
-                      <Bell
-                        size={14}
-                        color={
-                          alert.type === 'deepfake'
-                            ? 'var(--red)'
-                            : alert.type === 'report'
-                            ? 'var(--brand-primary)'
-                            : 'var(--green)'
-                        }
-                      />
-                    </div>
-                    <div className="notification-content">
-                      <div className="notification-message">{alert.message}</div>
-                      <div className="notification-time">{alert.time}</div>
-                    </div>
+                {notifications.length === 0 && (
+                  <div style={{ padding: '16px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>
+                    No notifications yet.
                   </div>
-                ))}
+                )}
+                {notifications.slice(0, 5).map((n) => {
+                  const [bg, color] = NOTIF_COLORS[n.type] || NOTIF_COLORS.info
+                  return (
+                    <Link
+                      key={n.id}
+                      to={n.link || '/notifications'}
+                      className={`notification-item ${!n.read ? 'unread' : ''}`}
+                      style={{ color: 'inherit' }}
+                      onClick={() => { markRead([n.id]); setShowNotifications(false) }}
+                    >
+                      <div className="notification-icon-wrap" style={{ background: bg }}>
+                        <Bell size={14} color={color} />
+                      </div>
+                      <div className="notification-content">
+                        <div className="notification-message">{n.title}: {n.message}</div>
+                        <div className="notification-time">{formatTimeAgo(n.timestamp)}</div>
+                      </div>
+                    </Link>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -150,7 +168,7 @@ export default function Navbar({ onMenuToggle }) {
             aria-label="User menu"
           >
             <div className="navbar-avatar">{initials}</div>
-            <span className="navbar-user-name">{user?.name?.split(' ')[0] || 'Demo'}</span>
+            <span className="navbar-user-name">{user?.name?.split(' ')[0] || 'Account'}</span>
             <ChevronDown size={14} color="var(--text-muted)" />
           </button>
 
