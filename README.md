@@ -19,13 +19,17 @@ An end-to-end investigative platform for analyzing suspicious media, assessing m
    - [Frontend Setup](#frontend-setup)
 8. [Environment Configuration](#environment-configuration)
 9. [Running the Application](#running-the-application)
-10. [Testing](#testing)
-11. [API Endpoints](#api-endpoints)
-12. [Evidence & Report Workflow](#evidence--report-workflow)
-13. [Troubleshooting](#troubleshooting)
-14. [Security & Responsible Use](#security--responsible-use)
-15. [Documentation](#documentation)
-16. [License](#license)
+10. [Docker & Containerized Setup](#docker--containerized-setup)
+11. [Production Deployment](#production-deployment)
+    - [Vercel (Frontend SPA)](#vercel-deployment-frontend)
+    - [Render (Backend Web Service)](#render-deployment-backend)
+12. [Testing](#testing)
+13. [API Endpoints](#api-endpoints)
+14. [Evidence & Report Workflow](#evidence--report-workflow)
+15. [Troubleshooting](#troubleshooting)
+16. [Security & Responsible Use](#security--responsible-use)
+17. [Documentation](#documentation)
+18. [License](#license)
 
 ---
 
@@ -359,8 +363,116 @@ Expected output:
 ### Verify Setup
 
 - **Frontend:** Open `http://localhost:5173` in your browser
-- **API Health:** `curl http://127.0.0.1:5000/api/health`
+- **API Health:** `curl http://127.0.0.1:5000/health` (or `/api/health`)
 - **Demo Login:** Use `demo@fakenix.ai` / `Demo@123`
+
+---
+
+## Docker & Containerized Setup
+
+For local consistency or Docker-based production hosting, use Docker Compose:
+
+```bash
+# Build and start both services
+docker compose up --build -d
+
+# View logs
+docker compose logs -f
+
+# Stop services
+docker compose down
+```
+
+Services exposed:
+- **Frontend SPA (Nginx):** `http://localhost:80`
+- **Backend API (Gunicorn):** `http://localhost:5000`
+
+---
+
+## Production Deployment
+
+The recommended production architecture decouples the frontend and backend:
+- **Frontend:** Hosted on **Vercel** (Global CDN, Edge network, zero-config React SPA)
+- **Backend:** Hosted on **Render** (Managed Python Web Service with Gunicorn, persistent disk or cloud storage, and optional managed PostgreSQL)
+
+```
+Browser
+   │
+   ▼ HTTPS
+Vercel (React Vite SPA) ──► HTTPS /api ──► Render (Flask + Gunicorn)
+                                                    │
+                                                    ▼
+                                           PostgreSQL / Storage
+```
+
+### Vercel Deployment (Frontend)
+
+1. **Connect Repository on Vercel:**
+   - Log into [Vercel Dashboard](https://vercel.com).
+   - Click **Add New Project** and import the `FakeNix-v1` repository.
+
+2. **Configure Project Settings:**
+   - **Root Directory:** Click `Edit` and select `frontend`.
+   - **Framework Preset:** Vite (detected automatically).
+   - **Build Command:** `npm run build`
+   - **Output Directory:** `dist`
+   - **Install Command:** `npm install`
+
+3. **Set Environment Variables in Vercel:**
+   | Variable | Value | Description |
+   | --- | --- | --- |
+   | `VITE_API_BASE_URL` | `https://your-backend.onrender.com/api` | Render backend API endpoint |
+   | `VITE_APP_NAME` | `FAKENIX` | Application display title |
+
+4. **Deploy:**
+   - Click **Deploy**.
+   - Direct nested route navigation and SPA refresh are handled automatically via `frontend/vercel.json`.
+
+---
+
+### Render Deployment (Backend)
+
+The repository provides a `render.yaml` Blueprint specification for one-click setup, or you can configure a Web Service manually.
+
+#### Option A: One-Click via Render Blueprint
+1. In the [Render Dashboard](https://dashboard.render.com), go to **Blueprints**.
+2. Click **New Blueprint Instance** and select your repository.
+3. Render automatically reads `render.yaml` and provisions:
+   - Web Service: `fakenix-backend` (Python 3.11/3.12, Gunicorn)
+   - Health check path: `/health`
+   - Configured environment variable templates.
+
+#### Option B: Manual Web Service Setup
+1. In Render Dashboard, click **New +** -> **Web Service**.
+2. Select your repository.
+3. Configure the service settings:
+   - **Name:** `fakenix-backend`
+   - **Root Directory:** `backend`
+   - **Runtime:** `Python 3`
+   - **Build Command:** `pip install -r requirements.txt` (or Docker if preferred)
+   - **Start Command:** `gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 app:create_app()`
+   - **Health Check Path:** `/health`
+
+4. **Configure Environment Variables in Render:**
+   | Variable | Example Value | Description |
+   | --- | --- | --- |
+   | `FLASK_ENV` | `production` | Production mode |
+   | `PORT` | `10000` | Injected automatically by Render |
+   | `SECRET_KEY` | *(generate 32+ random chars)* | Flask session secret |
+   | `JWT_SECRET_KEY` | *(generate 32+ random chars)* | JWT signing secret |
+   | `CORS_ORIGINS` | `https://your-frontend.vercel.app` | Vercel frontend URL (comma-separated if multiple) |
+   | `FRONTEND_URL` | `https://your-frontend.vercel.app` | Primary frontend domain |
+   | `DATABASE_URL` | `postgresql://user:pass@host/db` | Render Postgres or MySQL URL |
+   | `GROQ_API_KEY` | `gsk_...` | Groq API key for vision AI |
+   | `GROQ_MODEL` | `qwen/qwen3.8-27b` | AI vision model |
+   | `DEMO_MODE` | `false` | Set `false` for real AI inference |
+   | `MAX_CONTENT_LENGTH` | `104857600` | 100 MB upload limit |
+
+5. **Initialize Database on Render:**
+   - Open the **Shell** tab in your Render Web Service dashboard and run:
+     ```bash
+     python scripts/init_db.py
+     ```
 
 ---
 
