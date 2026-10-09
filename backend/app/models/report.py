@@ -7,7 +7,11 @@ from app.extensions import db
 
 class Report(db.Model):
     __tablename__ = 'reports'
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = (
+        # One report per detection: repeated or concurrent requests reuse it.
+        db.Index('uq_reports_detection_id', 'detection_id', unique=True),
+        {'extend_existing': True},
+    )
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     report_uid = db.Column(db.String(30), unique=True, nullable=False, index=True)  # FX-RPT-2026-001
@@ -28,17 +32,22 @@ class Report(db.Model):
         # Determine detection result display
         result_display = 'Unknown'
         confidence = None
+        deepfake_probability = None
         risk = None
         evidence_id = None
         file_name = None
+        is_demo = None
 
         if det:
             result_display = (det.result or 'unknown').capitalize()
             confidence = det.confidence
+            deepfake_probability = det.deepfake_probability
             risk = det.risk_level
             file_name = det.file_name
-            ev_list = list(det.evidence)
-            evidence_id = ev_list[0].evidence_uid if ev_list else None
+            is_demo = bool(det.is_demo)
+            from app.models.evidence import Evidence
+            first_evidence = det.evidence.order_by(Evidence.id).first()
+            evidence_id = first_evidence.evidence_uid if first_evidence else None
 
         return {
             'id': f'rpt_{self.id}',
@@ -47,7 +56,10 @@ class Report(db.Model):
             'detectionId': det.detection_uid if det else None,
             'reportType': self.report_type,
             'detection': result_display,
+            # Both are the model-estimated likelihood (0-100) that the media is fake.
             'confidence': confidence,
+            'deepfakeProbability': deepfake_probability if deepfake_probability is not None else confidence,
+            'isDemo': is_demo,
             'risk': risk,
             'generatedDate': self.created_at.isoformat() if self.created_at else None,
             'generatedBy': self.generated_by or (user.full_name if user else 'FAKENIX System'),

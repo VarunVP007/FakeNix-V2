@@ -29,7 +29,7 @@ class Detection(db.Model):
     risk_level = db.Column(db.String(20), nullable=True)    # low | medium | high | critical
 
     # Model
-    model_name = db.Column(db.String(50), nullable=True, default='EfficientNet-B4')
+    model_name = db.Column(db.String(50), nullable=True)  # what actually produced the result; no default
     is_demo = db.Column(db.Boolean, default=False, nullable=False)
 
     # Status
@@ -73,8 +73,9 @@ class Detection(db.Model):
             'sha256': sha256,
             'indicators': json.loads(self.indicators_json) if self.indicators_json else [],
             'frames': json.loads(self.frames_json) if self.frames_json else [],
-            'metadata': {k: v for k, v in metadata.items() if k != 'aiExplanation'},
+            'metadata': {k: v for k, v in metadata.items() if k not in ('aiExplanation', 'aiAnalysis')},
             'explanation': metadata.get('aiExplanation'),
+            'analysis': metadata.get('aiAnalysis'),
             'timestamp': self.created_at.isoformat() if self.created_at else None,
             'status': self.status,
         }

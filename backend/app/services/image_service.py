@@ -3,10 +3,10 @@ FAKENIX 2.0 — Secure Image Upload Service
 """
 import os
 import uuid
-import mimetypes
 from flask import current_app
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import FileStorage
+from app.services.metadata_service import sniff_header
 from app.utils.logger import get_logger
 
 logger = get_logger('image_service')
@@ -56,6 +56,17 @@ def validate_video_file(file: FileStorage) -> tuple[bool, str]:
     if ext not in allowed_video_exts:
         return False, f'Unsupported file extension ".{ext}". Allowed: MP4, MOV, AVI, MKV.'
 
+    # The extension alone proves nothing: require a video container in the bytes.
+    header = file.stream.read(512)
+    file.stream.seek(0)
+
+    detected = sniff_header(header)
+    if detected['kind'] != 'video':
+        return False, (
+            'File content is not a recognised video container '
+            f'(detected: {detected["mime"] or "unknown"}).'
+        )
+
     return True, ''
 
 
@@ -91,16 +102,8 @@ def save_upload(file: FileStorage, subfolder: str = '') -> tuple[str, str]:
 def _detect_mime_from_bytes(header: bytes) -> str:
     """
     Detect MIME type from file magic bytes.
-    Simple implementation for common image formats.
     """
-    if header[:3] == b'\xff\xd8\xff':
-        return 'image/jpeg'
-    elif header[:8] == b'\x89PNG\r\n\x1a\n':
-        return 'image/png'
-    elif header[:4] in (b'RIFF', ) and b'WEBP' in header[:12]:
-        return 'image/webp'
-    # Fallback to content-type header (less trusted)
-    return 'application/octet-stream'
+    return sniff_header(header)['mime'] or 'application/octet-stream'
 
 
 def get_file_size_display(path: str) -> str:

@@ -51,6 +51,12 @@ def create_app(config_name: str = None) -> Flask:
         from app.models.cybercrime_report import CybercrimeReport  # noqa: F401
         db.create_all()
 
+        from app.services.database_service import ensure_report_constraints
+        try:
+            ensure_report_constraints()
+        except Exception as e:
+            app.logger.error(f'Could not verify report constraints: {e}')
+
     # CORS — allow the configured frontend origin(s)
     allowed_origins = [
         app.config.get('FRONTEND_URL', 'http://localhost:3000'),

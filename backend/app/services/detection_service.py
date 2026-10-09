@@ -12,14 +12,16 @@ from app.extensions import db
 from app.models.detection import Detection
 from app.services.hashing_service import calculate_sha256, calculate_md5, generate_evidence_id
 from app.services.evidence_service import create_evidence_record
-from app.services.metadata_service import extract_image_metadata, extract_video_metadata, extract_basic_metadata
+from app.services.metadata_service import (
+    extract_image_metadata, extract_video_metadata, extract_basic_metadata, merge_file_metadata,
+)
 from app.services.image_service import get_file_size_display
 from app.utils.logger import get_logger
 
 logger = get_logger('detection_service')
 
 
-def run_image_detection(file_path: str, file_name: str, user_id: int = None) -> dict:
+def run_image_detection(file_path: str, file_name: str, user_id: int = None, client_mime: str = None) -> dict:
     """
     Full image detection pipeline:
     1. Hash the file
@@ -35,11 +37,13 @@ def run_image_detection(file_path: str, file_name: str, user_id: int = None) -> 
     md5 = calculate_md5(file_path)
 
     # Step 2: Metadata
-    meta = extract_image_metadata(file_path)
-    basic = extract_basic_metadata(file_path, file_name)
+    file_meta = merge_file_metadata(
+        extract_image_metadata(file_path),
+        extract_basic_metadata(file_path, file_name, client_mime),
+    )
 
     # Step 3: AI Inference (Groq vision LLM)
-    inference = _run_inference(file_path, file_type='image', metadata={**meta, **basic})
+    inference = _run_inference(file_path, file_type='image', metadata=file_meta)
 
     # Step 4: Persist
     detection_uid = f'det_{uuid.uuid4().hex[:12]}'
@@ -49,8 +53,8 @@ def run_image_detection(file_path: str, file_name: str, user_id: int = None) -> 
         user_id=user_id,
         file_name=file_name,
         file_type='image',
-        file_size=basic['fileSizeMB'] and f'{basic["fileSizeMB"]} MB',
-        resolution=meta.get('resolution'),
+        file_size=get_file_size_display(file_path),
+        resolution=file_meta.get('resolution'),
         result=inference['result'],
         confidence=inference['confidence'],
         deepfake_probability=inference['confidence'],
@@ -61,7 +65,7 @@ def run_image_detection(file_path: str, file_name: str, user_id: int = None) -> 
         status='complete',
         indicators_json=json.dumps(inference.get('indicators', [])),
         frames_json=json.dumps([]),
-        metadata_json=json.dumps({**meta, **basic, 'aiExplanation': inference.get('explanation')}),
+        metadata_json=json.dumps(_detection_metadata(file_meta, inference)),
     )
     db.session.add(detection)
     db.session.flush()  # Get detection.id before creating evidence
@@ -75,7 +79,7 @@ def run_image_detection(file_path: str, file_name: str, user_id: int = None) -> 
         md5_hash=md5,
         file_name=file_name,
         file_type='image',
-        metadata={**meta, **basic},
+        metadata=file_meta,
         uploaded_by=uploaded_by,
     )
     db.session.commit()
@@ -86,7 +90,7 @@ def run_image_detection(file_path: str, file_name: str, user_id: int = None) -> 
     return result
 
 
-def run_video_detection(file_path: str, file_name: str, user_id: int = None) -> dict:
+def run_video_detection(file_path: str, file_name: str, user_id: int = None, client_mime: str = None) -> dict:
     """
     Full video detection pipeline with frame-level analysis.
     """
@@ -95,22 +99,24 @@ def run_video_detection(file_path: str, file_name: str, user_id: int = None) -> 
     sha256 = calculate_sha256(file_path)
     md5 = calculate_md5(file_path)
 
-    meta = extract_video_metadata(file_path)
-    basic = extract_basic_metadata(file_path, file_name)
+    file_meta = merge_file_metadata(
+        extract_video_metadata(file_path),
+        extract_basic_metadata(file_path, file_name, client_mime),
+    )
 
     # AI inference on sampled frames (Groq vision LLM)
-    inference = _run_inference(file_path, file_type='video', metadata={**meta, **basic})
+    inference = _run_inference(file_path, file_type='video', metadata=file_meta)
 
     detection_uid = f'det_{uuid.uuid4().hex[:12]}'
-    duration_str = meta.get('duration', None)
-    resolution_str = meta.get('resolution', None)
+    duration_str = file_meta.get('duration', None)
+    resolution_str = file_meta.get('resolution', None)
 
     detection = Detection(
         detection_uid=detection_uid,
         user_id=user_id,
         file_name=file_name,
         file_type='video',
-        file_size=basic['fileSizeMB'] and f'{basic["fileSizeMB"]} MB',
+        file_size=get_file_size_display(file_path),
         resolution=resolution_str,
         duration=duration_str,
         result=inference['result'],
@@ -123,7 +129,7 @@ def run_video_detection(file_path: str, file_name: str, user_id: int = None) -> 
         status='complete',
         indicators_json=json.dumps(inference.get('indicators', [])),
         frames_json=json.dumps(inference.get('frames', [])),
-        metadata_json=json.dumps({**meta, **basic, 'aiExplanation': inference.get('explanation')}),
+        metadata_json=json.dumps(_detection_metadata(file_meta, inference)),
     )
     db.session.add(detection)
     db.session.flush()
@@ -137,7 +143,7 @@ def run_video_detection(file_path: str, file_name: str, user_id: int = None) -> 
         md5_hash=md5,
         file_name=file_name,
         file_type='video',
-        metadata={**meta, **basic},
+        metadata=file_meta,
         uploaded_by=uploaded_by,
     )
     db.session.commit()
@@ -258,6 +264,26 @@ def delete_detection(detection_uid: str, user_id: int) -> bool:
 # ──────────────────────────────────────────────────────────────
 # Internal: AI inference dispatch
 # ──────────────────────────────────────────────────────────────
+
+def _detection_metadata(file_meta: dict, inference: dict) -> dict:
+    """
+    Detection.metadata_json: the measured file metadata plus the model's written
+    assessment and a record of what actually produced the result.
+    """
+    return {
+        **file_meta,
+        'aiExplanation': inference.get('explanation'),
+        'aiAnalysis': {
+            'provider': inference.get('provider'),
+            'model': inference.get('model_id'),
+            'isDemo': bool(inference.get('is_demo', False)),
+            'rawVerdict': inference.get('raw_verdict'),
+            'rawProbability': inference.get('raw_probability'),
+            'verdictPolicy': inference.get('verdict_policy'),
+            'analyzedAt': datetime.now(timezone.utc).isoformat(),
+        },
+    }
+
 
 def _run_inference(file_path: str, file_type: str, metadata: dict | None = None) -> dict:
     """

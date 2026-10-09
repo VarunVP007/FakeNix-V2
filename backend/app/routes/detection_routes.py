@@ -54,6 +54,7 @@ def detect_image():
             file_path=file_path,
             file_name=file.filename,
             user_id=g.current_user_id,
+            client_mime=file.mimetype,
         )
         return success_response(data=result, message='Image analysis complete.')
     except GroqAnalysisError as e:
@@ -88,6 +89,7 @@ def detect_video():
             file_path=file_path,
             file_name=file.filename,
             user_id=g.current_user_id,
+            client_mime=file.mimetype,
         )
         return success_response(data=result, message='Video analysis complete.')
     except GroqAnalysisError as e:
