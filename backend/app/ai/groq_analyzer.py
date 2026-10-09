@@ -106,7 +106,13 @@ def is_configured() -> bool:
 
 
 def _get_client():
-    from groq import Groq
+    try:
+        from groq import Groq
+    except ImportError as e:
+        raise GroqAnalysisError(
+            'The "groq" package is not installed in the Python environment running the server. '
+            'Start the backend from its project environment: uv run python run.py'
+        ) from e
 
     api_key = _config('GROQ_API_KEY')
     if not api_key:

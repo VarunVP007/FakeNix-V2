@@ -46,10 +46,9 @@ def demo_mode_optional(fn):
             identity = get_jwt_identity()
             g.current_user_id = int(identity) if identity is not None else (1 if current_app.config.get('DEMO_MODE') else None)
         except Exception:
-            if current_app.config.get('DEMO_MODE'):
-                g.current_user_id = 1
-                return fn(*args, **kwargs)
-            return error_response('Unauthorized', 401)
+            # A token was sent but is expired or was signed with a different secret.
+            # It is never downgraded to the demo user: the client must log in again.
+            return error_response('Your session is no longer valid. Please log in again.', 401)
         return fn(*args, **kwargs)
     return wrapper
 

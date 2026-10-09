@@ -9,6 +9,36 @@ import sys
 # Ensure the backend directory is in the Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+
+def _use_project_environment() -> None:
+    """
+    Dependencies (flask, groq, opencv, ...) are installed by uv into backend/.venv.
+    A plain `python run.py` starts whatever interpreter is on PATH, which does not
+    have them. If that happened, restart this script with the project's interpreter.
+    """
+    backend_dir = os.path.dirname(os.path.abspath(__file__))
+    venv_dir = os.path.join(backend_dir, '.venv')
+    venv_python = os.path.join(venv_dir, 'Scripts', 'python.exe') if os.name == 'nt' \
+        else os.path.join(venv_dir, 'bin', 'python')
+
+    if os.path.normcase(os.path.abspath(sys.prefix)) == os.path.normcase(venv_dir):
+        return
+    if not os.path.exists(venv_python):
+        sys.exit('The project environment backend/.venv does not exist. '
+                 'Run "uv sync" in backend/, then "uv run python run.py".')
+
+    import subprocess
+    print(f'Not running in the project environment ({sys.executable}).\n'
+          f'Restarting with {venv_python}\n')
+    try:
+        sys.exit(subprocess.call([venv_python, os.path.abspath(__file__), *sys.argv[1:]]))
+    except KeyboardInterrupt:
+        sys.exit(0)
+
+
+if __name__ == '__main__':
+    _use_project_environment()
+
 from dotenv import load_dotenv
 
 # Load .env from the backend directory

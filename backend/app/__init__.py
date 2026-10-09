@@ -214,6 +214,10 @@ def _register_error_handlers(app: Flask) -> None:
 
     @app.errorhandler(Exception)
     def unhandled_exception(e):
+        # HTTP errors without their own handler (405, 415, ...) keep their status.
+        from werkzeug.exceptions import HTTPException
+        if isinstance(e, HTTPException):
+            return error_response(e.description or e.name, e.code or 500)
         app.logger.exception(f'Unhandled exception: {e}')
         return error_response('An unexpected error occurred.', 500)
 
