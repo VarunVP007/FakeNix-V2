@@ -1,0 +1,16 @@
+# FAKENIX 2.0 robots.txt
+User-agent: *
+Allow: /
+Allow: /detect
+Allow: /awareness
+Allow: /resources
+Disallow: /dashboard
+Disallow: /result/
+Disallow: /history
+Disallow: /evidence
+Disallow: /reports
+Disallow: /cybercrime/
+Disallow: /settings
+Disallow: /notifications
+
+Sitemap: https://fakenix.vercel.app/sitemap.xml

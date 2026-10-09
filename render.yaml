@@ -1,0 +1,43 @@
+# ============================================================
+# FAKENIX 2.0 — Render Blueprint (render.yaml)
+# Infrastructure as Code for deploying the FAKENIX Flask backend
+# ============================================================
+
+services:
+  - type: web
+    name: fakenix-backend
+    runtime: python
+    rootDir: backend
+    region: oregon
+    plan: free
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
+    startCommand: "gunicorn \"app:create_app()\" --bind 0.0.0.0:$PORT --workers 2 --timeout 120 --access-logfile - --error-logfile -"
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: FLASK_ENV
+        value: production
+      - key: DEMO_MODE
+        value: "true"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: JWT_ACCESS_TOKEN_EXPIRES_HOURS
+        value: "24"
+      - key: FRONTEND_URL
+        value: "http://localhost:5173"
+      - key: CORS_ORIGINS
+        value: "http://localhost:3000,http://localhost:5173"
+      - key: GROQ_MODEL
+        value: "qwen/qwen3.8-27b"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        value: "sqlite:///fakenix_prod.db"
+      - key: MAX_CONTENT_LENGTH
+        value: "104857600"
+      - key: LOG_LEVEL
+        value: "INFO"

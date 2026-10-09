@@ -12,7 +12,7 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identi
 from app.services.auth_service import register_user, authenticate_user, get_user_by_id
 from app.utils.response import success_response, error_response
 from app.utils.validators import validate_required_fields
-from app.utils.decorators import demo_mode_optional
+from app.utils.decorators import demo_mode_optional, jwt_required_custom
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -71,7 +71,7 @@ def login():
 
 
 @auth_bp.route('/me', methods=['GET'])
-@demo_mode_optional
+@jwt_required_custom
 def me():
     """GET /api/auth/me — return current user info"""
     user = get_user_by_id(g.current_user_id)

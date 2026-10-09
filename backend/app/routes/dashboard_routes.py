@@ -7,13 +7,13 @@ from flask import Blueprint, request, g, current_app
 
 from app.services.dashboard_service import get_detection_trend
 from app.utils.response import success_response, error_response
-from app.utils.decorators import demo_mode_optional
+from app.utils.decorators import jwt_required_custom
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
 
 @dashboard_bp.route('/detection-trend', methods=['GET'])
-@demo_mode_optional
+@jwt_required_custom
 def detection_trend():
     """
     GET /api/dashboard/detection-trend?days=11

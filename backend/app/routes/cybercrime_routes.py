@@ -14,13 +14,13 @@ from app.services.cybercrime_service import (
 )
 from app.utils.response import success_response, error_response
 from app.utils.validators import validate_required_fields
-from app.utils.decorators import demo_mode_optional
+from app.utils.decorators import jwt_required_custom
 
 cybercrime_bp = Blueprint('cybercrime', __name__)
 
 
 @cybercrime_bp.route('/cybercrime/report', methods=['POST'])
-@demo_mode_optional
+@jwt_required_custom
 def submit_cybercrime_report():
     """
     POST /api/cybercrime/report
@@ -60,7 +60,7 @@ def submit_cybercrime_report():
 
 
 @cybercrime_bp.route('/cybercrime/reports', methods=['GET'])
-@demo_mode_optional
+@jwt_required_custom
 def list_cybercrime_reports():
     """GET /api/cybercrime/reports"""
     try:
@@ -72,7 +72,7 @@ def list_cybercrime_reports():
 
 
 @cybercrime_bp.route('/cybercrime/reports/<report_uid>', methods=['GET'])
-@demo_mode_optional
+@jwt_required_custom
 def get_cybercrime_report(report_uid: str):
     """GET /api/cybercrime/reports/<report_uid>"""
     report = get_cybercrime_report_by_uid(report_uid, g.current_user_id)

@@ -21,14 +21,14 @@ from app.services.detection_service import (
 from app.services.image_service import validate_image_file, validate_video_file, save_upload
 from app.utils.response import success_response, error_response
 from app.utils.validators import validate_url
-from app.utils.decorators import demo_mode_optional
+from app.utils.decorators import jwt_required_custom
 from app.ai.groq_analyzer import GroqAnalysisError
 
 detection_bp = Blueprint('detection', __name__)
 
 
 @detection_bp.route('/detect/image', methods=['POST'])
-@demo_mode_optional
+@jwt_required_custom
 def detect_image():
     """POST /api/detect/image — multipart/form-data with field 'file'"""
     if 'file' not in request.files:
@@ -65,7 +65,7 @@ def detect_image():
 
 
 @detection_bp.route('/detect/video', methods=['POST'])
-@demo_mode_optional
+@jwt_required_custom
 def detect_video():
     """POST /api/detect/video — multipart/form-data with field 'file'"""
     if 'file' not in request.files:
@@ -99,7 +99,7 @@ def detect_video():
 
 
 @detection_bp.route('/detect/url', methods=['POST'])
-@demo_mode_optional
+@jwt_required_custom
 def detect_url():
     """POST /api/detect/url — JSON body with 'url'"""
     data = request.get_json(silent=True) or {}
@@ -122,7 +122,7 @@ def detect_url():
 
 
 @detection_bp.route('/detections', methods=['GET'])
-@demo_mode_optional
+@jwt_required_custom
 def list_detections():
     """GET /api/detections — list all detections for current user"""
     try:
@@ -134,7 +134,7 @@ def list_detections():
 
 
 @detection_bp.route('/detections/<detection_uid>', methods=['GET'])
-@demo_mode_optional
+@jwt_required_custom
 def get_detection(detection_uid: str):
     """GET /api/detections/<id>"""
     detection = get_detection_by_uid(detection_uid, g.current_user_id)
@@ -144,7 +144,7 @@ def get_detection(detection_uid: str):
 
 
 @detection_bp.route('/detections/<detection_uid>', methods=['DELETE'])
-@demo_mode_optional
+@jwt_required_custom
 def remove_detection(detection_uid: str):
     """DELETE /api/detections/<id>"""
     deleted = delete_detection(detection_uid, g.current_user_id)
@@ -154,7 +154,7 @@ def remove_detection(detection_uid: str):
 
 
 @detection_bp.route('/detections/trend', methods=['GET'])
-@demo_mode_optional
+@jwt_required_custom
 def get_trend():
     """GET /api/detections/trend?days=11"""
     from app.services.dashboard_service import get_detection_trend

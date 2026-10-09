@@ -23,13 +23,13 @@ def _use_project_environment() -> None:
 
     if os.path.normcase(os.path.abspath(sys.prefix)) == os.path.normcase(venv_dir):
         return
+    # Only re-exec if the local backend/.venv actually exists. In Docker, Render,
+    # or system-wide venv environments, proceed with current sys.executable.
     if not os.path.exists(venv_python):
-        sys.exit('The project environment backend/.venv does not exist. '
-                 'Run "uv sync" in backend/, then "uv run python run.py".')
+        return
 
     import subprocess
-    print(f'Not running in the project environment ({sys.executable}).\n'
-          f'Restarting with {venv_python}\n')
+    print(f'Restarting with project environment ({venv_python})...\n')
     try:
         sys.exit(subprocess.call([venv_python, os.path.abspath(__file__), *sys.argv[1:]]))
     except KeyboardInterrupt:
@@ -51,14 +51,15 @@ app = create_app()
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_ENV', 'development') == 'development'
+    host = os.environ.get('HOST', '127.0.0.1' if debug else '0.0.0.0')
     print(f"\n{'='*60}")
     print(f"  FAKENIX 2.0 Backend")
-    print(f"  Running at: http://127.0.0.1:{port}")
+    print(f"  Running at: http://{host}:{port}")
     print(f"  Environment: {os.environ.get('FLASK_ENV', 'development')}")
     print(f"  Demo Mode: {os.environ.get('DEMO_MODE', 'true')}")
     print(f"{'='*60}\n")
     app.run(
-        host='127.0.0.1',
+        host=host,
         port=port,
         debug=debug,
         use_reloader=debug

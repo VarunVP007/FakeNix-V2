@@ -6,8 +6,9 @@ import { authService } from './services/authService'
 import AppLayout from './components/layout/AppLayout'
 import ProtectedRoute from './components/layout/ProtectedRoute'
 
-// Toast context
+// Toast context & Error boundary
 import Toast from './components/common/Toast'
+import ErrorBoundary from './components/common/ErrorBoundary'
 
 // Pages — Public
 import Landing from './pages/Landing'
@@ -70,39 +71,41 @@ function App() {
   return (
     <AuthContext.Provider value={authValue}>
       <ToastContext.Provider value={toastValue}>
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <Routes>
-            {/* Public */}
-            <Route path="/" element={<Landing />} />
-            <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
-            <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <Register />} />
+        <ErrorBoundary>
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <Routes>
+              {/* Public */}
+              <Route path="/" element={<Landing />} />
+              <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
+              <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <Register />} />
 
-            {/* Protected — wrapped in AppLayout */}
-            <Route element={<ProtectedRoute />}>
-              <Route element={<AppLayout />}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/detect" element={<Detect />} />
-                <Route path="/detect/image" element={<ImageAnalysis />} />
-                <Route path="/detect/video" element={<VideoAnalysis />} />
-                <Route path="/detect/url" element={<Navigate to="/detect" replace />} />
-                <Route path="/analysis/processing" element={<Navigate to="/detect" replace />} />
-                <Route path="/result/:id" element={<Result />} />
-                <Route path="/result/:id/frames" element={<FrameAnalysis />} />
-                <Route path="/history" element={<History />} />
-                <Route path="/evidence" element={<Evidence />} />
-                <Route path="/reports" element={<Reports />} />
-                <Route path="/cybercrime/report" element={<CybercrimeReport />} />
-                <Route path="/awareness" element={<Awareness />} />
-                <Route path="/resources" element={<Resources />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/notifications" element={<Notifications />} />
+              {/* Protected — wrapped in AppLayout */}
+              <Route element={<ProtectedRoute />}>
+                <Route element={<AppLayout />}>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/detect" element={<Detect />} />
+                  <Route path="/detect/image" element={<ImageAnalysis />} />
+                  <Route path="/detect/video" element={<VideoAnalysis />} />
+                  <Route path="/detect/url" element={<Navigate to="/detect" replace />} />
+                  <Route path="/analysis/processing" element={<Navigate to="/detect" replace />} />
+                  <Route path="/result/:id" element={<Result />} />
+                  <Route path="/result/:id/frames" element={<FrameAnalysis />} />
+                  <Route path="/history" element={<History />} />
+                  <Route path="/evidence" element={<Evidence />} />
+                  <Route path="/reports" element={<Reports />} />
+                  <Route path="/cybercrime/report" element={<CybercrimeReport />} />
+                  <Route path="/awareness" element={<Awareness />} />
+                  <Route path="/resources" element={<Resources />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/notifications" element={<Notifications />} />
+                </Route>
               </Route>
-            </Route>
 
-            {/* 404 */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+              {/* 404 */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </ErrorBoundary>
 
         {/* Toast container */}
         <div className="toast-container">

@@ -2983,3 +2983,48 @@ textarea.form-control { resize: vertical; min-height: 96px; }
 
 /* Allow an evidence line under each AI indicator. */
 .indicator-item { flex-wrap: wrap; }
+
+/* ============================================
+   ACCESSIBILITY & RESPONSIVE ENHANCEMENTS
+   ============================================ */
+
+/* Accessible focus visible outlines */
+:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+/* Respect user reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Prevent horizontal viewport overflow */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Responsive tables with smooth touch scrolling */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+

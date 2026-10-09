@@ -49,26 +49,51 @@ def create_app(config_name: str = None) -> Flask:
         from app.models.evidence import Evidence  # noqa: F401
         from app.models.report import Report  # noqa: F401
         from app.models.cybercrime_report import CybercrimeReport  # noqa: F401
-        db.create_all()
+        try:
+            db.create_all()
+        except Exception as e:
+            app.logger.warning(f"Initial db.create_all() deferred or failed (migrations may be used): {e}")
 
-    # CORS — allow the configured frontend origin(s)
-    allowed_origins = [
-        app.config.get('FRONTEND_URL', 'http://localhost:3000'),
+    # CORS — parse configured frontend origin(s), stripping trailing slashes
+    raw_origins = []
+    frontend_url = app.config.get('FRONTEND_URL', '')
+    if frontend_url:
+        raw_origins.extend([o.strip().rstrip('/') for o in frontend_url.split(',') if o.strip()])
+    cors_origins = app.config.get('CORS_ORIGINS', '')
+    if cors_origins:
+        raw_origins.extend([o.strip().rstrip('/') for o in cors_origins.split(',') if o.strip()])
+
+    # Local development defaults
+    raw_origins.extend([
         'http://localhost:3000',
         'http://localhost:5173',
         'http://127.0.0.1:3000',
         'http://127.0.0.1:5173',
-    ]
-    # Deduplicate
-    allowed_origins = list(dict.fromkeys(allowed_origins))
+    ])
+    allowed_origins = list(dict.fromkeys(raw_origins))
 
     cors.init_app(
         app,
         resources={r'/api/*': {'origins': allowed_origins}},
         supports_credentials=True,
-        allow_headers=['Content-Type', 'Authorization'],
-        methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'],
+        methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     )
+
+    # ── Security Headers ───────────────────────────────────────
+    @app.after_request
+    def set_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+        return response
+
+    # ── Database Session Teardown ──────────────────────────────
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        db.session.remove()
 
     # ── Storage directories ────────────────────────────────────
     _ensure_storage_dirs(app)
@@ -172,7 +197,8 @@ def _register_blueprints(app: Flask) -> None:
             }
         }), 200
 
-    # Health check (no auth required)
+    # Health check (no auth required) — both /health and /api/health supported
+    @app.route('/health', methods=['GET'])
     @app.route('/api/health', methods=['GET'])
     def health():
         return jsonify({

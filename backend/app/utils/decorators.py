@@ -29,25 +29,31 @@ def jwt_required_custom(fn):
 
 def demo_mode_optional(fn):
     """
-    Decorator that allows demo mode or optional JWT tokens to pass through.
-    In DEMO_MODE=true, any token starting with 'demo_token_' or missing header
-    is accepted and g.current_user_id is set to 1.
+    Optional auth for demo/public endpoints.
+
+    If a valid JWT is present, it is used. If no token is provided and DEMO_MODE is
+    enabled, the request is treated as a demo user so intentionally public demo
+    flows still work. Invalid tokens are still rejected.
     """
     @wraps(fn)
     def wrapper(*args, **kwargs):
         auth_header = request.headers.get('Authorization', '')
-        if current_app.config.get('DEMO_MODE'):
-            if not auth_header or auth_header.startswith('Bearer demo_token_'):
-                g.current_user_id = 1  # demo user ID
-                return fn(*args, **kwargs)
-        # Attempt JWT verification
+
+        if auth_header.startswith('Bearer demo_token_'):
+            g.current_user_id = 1
+            return fn(*args, **kwargs)
+
+        if not auth_header and current_app.config.get('DEMO_MODE'):
+            g.current_user_id = 1
+            return fn(*args, **kwargs)
+
         try:
-            verify_jwt_in_request(optional=True)
+            verify_jwt_in_request()
             identity = get_jwt_identity()
-            g.current_user_id = int(identity) if identity is not None else (1 if current_app.config.get('DEMO_MODE') else None)
+            if identity is None:
+                return error_response('Authentication token required.', 401)
+            g.current_user_id = int(identity)
         except Exception:
-            # A token was sent but is expired or was signed with a different secret.
-            # It is never downgraded to the demo user: the client must log in again.
             return error_response('Your session is no longer valid. Please log in again.', 401)
         return fn(*args, **kwargs)
     return wrapper

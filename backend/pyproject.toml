@@ -30,6 +30,10 @@ dependencies = [
     "urllib3>=2.0.0",
     # AI analysis (vision LLM)
     "groq>=1.7.0",
+    # Production WSGI server (Render, Linux container)
+    "gunicorn>=21.2.0",
+    # PostgreSQL driver (Render managed database)
+    "psycopg2-binary>=2.9.9",
 ]
 
 [dependency-groups]

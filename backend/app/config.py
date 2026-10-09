@@ -2,24 +2,33 @@
 FAKENIX 2.0 — Application Configuration
 """
 import os
+import secrets
 from datetime import timedelta
+
+
+def _secure_default(name: str, length: int = 32) -> str:
+    return os.environ.get(name) or secrets.token_hex(length // 2)
 
 
 class BaseConfig:
     """Base configuration shared across all environments."""
 
     # Flask
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-change-in-production')
+    SECRET_KEY = _secure_default('SECRET_KEY')
     JSON_SORT_KEYS = False
 
     # Database
-    DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///fakenix_dev.db')
+    _RAW_DB_URL = os.environ.get('DATABASE_URL', 'sqlite:///fakenix_dev.db')
+    # Render and Heroku provide postgres:// URLs, but SQLAlchemy 1.4+ requires postgresql://
+    if _RAW_DB_URL and _RAW_DB_URL.startswith('postgres://'):
+        _RAW_DB_URL = _RAW_DB_URL.replace('postgres://', 'postgresql://', 1)
+    DATABASE_URL = _RAW_DB_URL
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ECHO = False
 
     # JWT
-    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-change-in-production')
+    JWT_SECRET_KEY = _secure_default('JWT_SECRET_KEY')
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(
         hours=int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES_HOURS', 24))
     )
@@ -55,6 +64,7 @@ class BaseConfig:
 
     # CORS
     FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+    CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '')
 
     # Allowed upload extensions
     ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp'}
