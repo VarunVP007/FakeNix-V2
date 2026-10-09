@@ -74,41 +74,6 @@ def get_table_row_counts() -> dict:
     return counts
 
 
-def ensure_report_constraints() -> None:
-    """
-    Add the one-report-per-detection unique index to a database created before
-    the index existed (db.create_all() never alters existing tables).
-
-    Nothing is deleted: if historical rows already share a detection, the index
-    is left off, the situation is logged, and the application-level check in
-    report_service keeps handing out the oldest report for that detection.
-    """
-    from sqlalchemy import func, inspect
-    from app.models.report import Report
-
-    index = next(i for i in Report.__table__.indexes if i.name == 'uq_reports_detection_id')
-    if any(i['name'] == index.name for i in inspect(db.engine).get_indexes('reports')):
-        return
-
-    duplicates = (
-        db.session.query(Report.detection_id)
-        .filter(Report.detection_id.isnot(None))
-        .group_by(Report.detection_id)
-        .having(func.count(Report.id) > 1)
-        .count()
-    )
-    db.session.rollback()  # release the read transaction before DDL
-    if duplicates:
-        logger.warning(
-            f'{duplicates} detection(s) already have more than one report; '
-            'unique index uq_reports_detection_id was not created. Existing rows were left untouched.'
-        )
-        return
-
-    index.create(db.engine)
-    logger.info('Created unique index uq_reports_detection_id on reports.detection_id')
-
-
 def safe_commit() -> tuple[bool, str]:
     """
     Attempt to commit the current session.

@@ -38,7 +38,6 @@ JPEG_QUALITY = 90
 
 VERDICT_TO_RESULT = {'real': 'real', 'fake': 'deepfake', 'uncertain': 'suspicious'}
 SEVERITIES = {'low', 'medium', 'high'}
-PROVIDER_NAME = 'Groq Cloud'
 
 
 class GroqAnalysisError(Exception):
@@ -154,19 +153,15 @@ def _extract_json(text: str) -> dict:
         raise GroqAnalysisError('The AI model returned an empty response.')
     cleaned = _THINK_RE.sub('', text).strip()
     cleaned = re.sub(r'^```(?:json)?\s*|\s*```$', '', cleaned, flags=re.IGNORECASE).strip()
-    parsed = None
     try:
-        parsed = json.loads(cleaned)
+        return json.loads(cleaned)
     except json.JSONDecodeError:
         start, end = cleaned.find('{'), cleaned.rfind('}')
         if start != -1 and end > start:
             try:
-                parsed = json.loads(cleaned[start:end + 1])
+                return json.loads(cleaned[start:end + 1])
             except json.JSONDecodeError:
                 pass
-    # Valid JSON that is not an object (a list, a number, ...) is just as unusable.
-    if isinstance(parsed, dict):
-        return parsed
     logger.error(f'Unparseable AI response: {cleaned[:500]}')
     raise GroqAnalysisError('The AI model returned a response that could not be parsed.')
 
@@ -237,8 +232,6 @@ def _describe_api_error(err) -> str:
 
 
 def _clamp_pct(value) -> float | None:
-    if isinstance(value, bool):
-        return None
     try:
         num = float(value)
     except (TypeError, ValueError):
@@ -264,7 +257,7 @@ def _normalize_indicators(raw) -> list:
             'name': str(item['name']).strip()[:120],
             'severity': severity if severity in SEVERITIES else 'medium',
             'score': score,
-            'evidence': str(item.get('evidence') or '').strip()[:400] or None,
+            'evidence': str(item.get('evidence', '')).strip()[:400] or None,
         })
     return indicators[:12]
 
@@ -279,52 +272,18 @@ def _build_result(answer: dict, model: str) -> dict:
     if result is None:
         raise GroqAnalysisError(f'The AI model returned an invalid verdict: "{verdict}".')
 
-    result, policy_note = _apply_verdict_policy(result, probability)
-
-    explanation = str(answer.get('explanation') or '').strip()[:2000] or None
+    explanation = str(answer.get('explanation', '')).strip()[:2000] or None
 
     return {
         'result': result,
-        # The model's own 0-100 estimate that the media is fake. It is an LLM
-        # self-assessment, not a statistically calibrated probability.
         'confidence': probability,
         'risk_level': classify_risk(probability),
         'model_name': f'{model} (Groq)',
-        'provider': PROVIDER_NAME,
-        'model_id': model,
         'is_demo': False,
         'indicators': _normalize_indicators(answer.get('indicators')),
         'frames': [],
         'explanation': explanation,
-        # What the model literally answered, before the verdict policy.
-        'raw_verdict': verdict,
-        'raw_probability': probability,
-        'verdict_policy': policy_note,
     }
-
-
-def _apply_verdict_policy(result: str, probability: float) -> tuple[str, str | None]:
-    """
-    Verdict policy for answers whose verdict and probability disagree.
-
-    The model is told that "real" means a fake-likelihood below the suspicious
-    threshold and that verdict and probability must agree. When they do not, the
-    answer is ambiguous and is stored as 'suspicious' — never as 'real', and never
-    as 'deepfake' on a low score. Returns (result, note); note is None when the
-    model's verdict was kept.
-    """
-    low_max = _config('RISK_THRESHOLDS', {}).get('low', (0.0, 30.0))[1]
-    if result == 'real' and probability >= low_max:
-        return 'suspicious', (
-            f'The model answered "real" with a fake-likelihood of {probability:.1f}%, '
-            f'which is not below the {low_max:.0f}% limit for "real". Recorded as suspicious.'
-        )
-    if result == 'deepfake' and probability < low_max:
-        return 'suspicious', (
-            f'The model answered "fake" with a fake-likelihood of only {probability:.1f}%. '
-            'Recorded as suspicious.'
-        )
-    return result, None
 
 
 def analyze_image(file_path: str, metadata: dict | None = None) -> dict:
@@ -409,7 +368,7 @@ def analyze_video(file_path: str, metadata: dict | None = None) -> dict:
     for i, (pos, _) in enumerate(sampled):
         entry = by_index.get(i, {})
         prob = _clamp_pct(entry.get('deepfake_probability'))
-        notes = str(entry.get('notes') or '').strip()
+        notes = str(entry.get('notes', '')).strip()
         frames.append({
             'frameNum': pos,
             'timestamp': ts(pos),

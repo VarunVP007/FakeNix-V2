@@ -6,11 +6,10 @@ GET  /api/reports
 GET  /api/reports/<report_uid>
 GET  /api/reports/<report_uid>/download
 """
+import os
 from flask import Blueprint, request, g, current_app, send_file
 
-from app.services.report_service import (
-    DETECTION_NOT_FOUND, generate_report, get_all_reports, get_report_by_uid, get_report_pdf,
-)
+from app.services.report_service import generate_report, get_all_reports, get_report_by_uid, get_report_path
 from app.services.auth_service import get_user_by_id
 from app.utils.response import success_response, error_response
 from app.utils.decorators import demo_mode_optional
@@ -31,13 +30,9 @@ def create_report():
     user_id = getattr(g, 'current_user_id', None)
     user = get_user_by_id(user_id) if user_id else None
 
-    try:
-        report, err = generate_report(detection_id, user, user_id=user_id)
-    except Exception as e:
-        current_app.logger.exception(f'Report generation error: {e}')
-        return error_response('Report generation failed.', 500)
+    report, err = generate_report(detection_id, user)
     if err:
-        return error_response(err, 404 if err == DETECTION_NOT_FOUND else 400)
+        return error_response(err, 400)
 
     return success_response(
         data=report.to_dict(),
@@ -75,25 +70,27 @@ def get_report(report_uid: str):
 def download_report(report_uid: str):
     """GET /api/reports/<report_uid>/download — stream PDF to client"""
     user_id = getattr(g, 'current_user_id', None)
+    user = get_user_by_id(user_id) if user_id else None
 
-    # Downloading never creates anything: an unknown ID is simply not found.
     report = get_report_by_uid(report_uid, user_id)
     if not report:
-        return error_response('Report not found.', 404)
+        report, err = generate_report(report_uid, user)
+        if err or not report:
+            return error_response('Report not found.', 404)
 
-    try:
-        report_path, err = get_report_pdf(report)
-    except Exception as e:
-        current_app.logger.exception(f'Report download error: {e}')
-        report_path, err = None, 'Report PDF generation failed.'
-    if err or not report_path:
-        return error_response(err or 'Report PDF generation failed.', 500)
+    report_path = get_report_path(report)
+    if not report_path or not os.path.exists(report_path):
+        from app.services.report_service import _generate_pdf_for_report
+        err = _generate_pdf_for_report(report, user)
+        report_path = get_report_path(report)
+        if err or not report_path or not os.path.exists(report_path):
+            return error_response('Report PDF file generation failed.', 500)
 
+    download_name = f'{report.report_uid}.pdf' if not report.report_uid.endswith('.pdf') else report.report_uid
     return send_file(
         report_path,
         mimetype='application/pdf',
         as_attachment=True,
-        download_name=f'{report.report_uid}.pdf',
-        max_age=0,
+        download_name=download_name,
     )
 

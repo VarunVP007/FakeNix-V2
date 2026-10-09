@@ -138,7 +138,7 @@ export default function Reports() {
                   <th>Report ID & Type</th>
                   <th>Media File</th>
                   <th>Verdict</th>
-                  <th title="The model's own estimate that the media is fake. Not a calibrated probability.">Deepfake Likelihood</th>
+                  <th>Confidence</th>
                   <th>Generated</th>
                   <th>Status</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
@@ -152,7 +152,7 @@ export default function Reports() {
                       <td>
                         <div style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
                           {r.reportId || 'No report ID'}
-                          {(r.isDemo || linked?.isDemo) && <span className="badge badge-purple" style={{ marginLeft: 6, fontSize: 10 }}>DEMO</span>}
+                          {linked?.isDemo && <span className="badge badge-purple" style={{ marginLeft: 6, fontSize: 10 }}>DEMO</span>}
                         </div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{r.reportType || 'Forensic report'}</div>
                       </td>
@@ -161,7 +161,7 @@ export default function Reports() {
                         {r.evidenceId && <div style={{ fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{r.evidenceId}</div>}
                       </td>
                       <td><ResultBadge result={r.result} /></td>
-                      <td><span style={{ fontWeight: 700, fontSize: '0.9rem', whiteSpace: 'nowrap' }}>{formatConfidence(r.deepfakeProbability ?? r.confidence)}</span></td>
+                      <td><span style={{ fontWeight: 700, fontSize: '0.9rem', whiteSpace: 'nowrap' }}>{formatConfidence(r.confidence)}</span></td>
                       <td><span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{formatDateTime(r.generatedDate)}</span></td>
                       <td>
                         {r.status === 'ready' ? (

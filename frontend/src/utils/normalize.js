@@ -145,9 +145,6 @@ export const normalizeReport = (raw) => {
     // The report serializer sends a capitalised verdict ("Deepfake") in `detection`.
     result: toLowerEnum(pick(raw, 'detection', 'result'), RESULTS),
     confidence: toNumber(raw.confidence),
-    // Model-estimated likelihood (0-100) that the media is fake; `confidence` carries the same value.
-    deepfakeProbability: toNumber(pick(raw, 'deepfakeProbability', 'deepfake_probability')),
-    isDemo: Boolean(pick(raw, 'isDemo', 'is_demo')),
     risk: toLowerEnum(raw.risk, RISKS),
     generatedDate: toStr(pick(raw, 'generatedDate', 'created_at')),
     generatedBy: toStr(raw.generatedBy),
